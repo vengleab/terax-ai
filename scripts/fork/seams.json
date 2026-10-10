@@ -1,0 +1,25 @@
+{
+  "marker": "fork:ssh-transfer",
+  "ownedPrefixes": [
+    "FORK.md",
+    "docs/fork/",
+    "scripts/fork/",
+    ".github/workflows/fork-ci.yml",
+    "src/modules/ssh-transfer/",
+    "src-tauri/crates/terax-ssh/",
+    "src-tauri/crates/tauri-plugin-terax-ssh/",
+    "src-tauri/capabilities/ssh-transfer.json"
+  ],
+  "seams": [
+    {
+      "file": "src-tauri/Cargo.toml",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src-tauri/src/lib.rs",
+      "min": 1,
+      "max": 1
+    }
+  ]
+}

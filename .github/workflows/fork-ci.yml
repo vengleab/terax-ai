@@ -1,0 +1,92 @@
+name: Fork CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  seams:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Fork seams are intact
+        run: node scripts/fork/check-seams.mjs
+
+  ssh-core:
+    name: ssh-core (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: ssh-core
+      - name: Clippy
+        if: matrix.os == 'ubuntu-22.04'
+        working-directory: src-tauri
+        run: cargo clippy -p terax-ssh --all-targets --locked -- -D warnings
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test -p terax-ssh --locked
+
+  ssh-plugin:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: ssh-plugin
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy -p tauri-plugin-terax-ssh --all-targets --locked -- -D warnings
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test -p tauri-plugin-terax-ssh --locked
+
+  ssh-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Module and fork tooling tests
+        run: pnpm exec vitest run src/modules/ssh-transfer scripts/fork
