@@ -16,3 +16,8 @@ terax-ssh = { path = "../terax-ssh" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync", "time"] }
+log = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "time", "macros", "rt", "test-util"] }
+tempfile = "3"

@@ -5860,10 +5860,12 @@ dependencies = [
 name = "tauri-plugin-terax-ssh"
 version = "0.9.0-beta"
 dependencies = [
+ "log",
  "serde",
  "serde_json",
  "tauri",
  "tauri-plugin",
+ "tempfile",
  "terax-ssh",
  "tokio",
 ]

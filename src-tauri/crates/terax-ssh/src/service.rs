@@ -689,6 +689,126 @@ mod tests {
         panic!("transfer did not finish: {:?}", events.lock().unwrap());
     }
 
+    #[test]
+    fn requests_accept_the_exact_shapes_the_frontend_sends() {
+        let endpoint: EndpointRef = serde_json::from_str(r#"{"kind":"remote","profileId":"abc123"}"#).unwrap();
+        assert_eq!(endpoint, EndpointRef::Remote { profile_id: "abc123".to_string() });
+        assert_eq!(serde_json::from_str::<EndpointRef>(r#"{"kind":"local"}"#).unwrap(), EndpointRef::Local);
+
+        let request: TransferRequest = serde_json::from_value(serde_json::json!({
+            "src": { "kind": "local" },
+            "dst": { "kind": "remote", "profileId": "p1" },
+            "sources": ["/a/b", "/a/c"],
+            "dstDir": "/srv",
+            "mode": "move",
+            "conflict": "update",
+            "resume": false,
+            "concurrency": 2
+        }))
+        .unwrap();
+        assert_eq!(request.mode, TransferMode::Move);
+        assert_eq!(request.conflict, ConflictPolicy::Update);
+        assert_eq!(request.resume, Some(false));
+        assert_eq!(request.dst_dir, "/srv");
+
+        let minimal: TransferRequest = serde_json::from_value(serde_json::json!({
+            "src": { "kind": "local" }, "dst": { "kind": "local" }, "sources": ["/x"], "dstDir": "/y"
+        }))
+        .unwrap();
+        assert_eq!(minimal.mode, TransferMode::Copy);
+        assert_eq!(minimal.conflict, ConflictPolicy::Ask);
+        assert_eq!(minimal.resume, None);
+
+        let connect: ConnectRequest = serde_json::from_value(serde_json::json!({
+            "profileId": "p1", "password": "pw", "keyPassphrase": "kp"
+        }))
+        .unwrap();
+        assert_eq!(connect.password.unwrap().expose(), "pw");
+        assert!(connect.jump_password.is_none());
+
+        let decision: ConflictDecision = serde_json::from_str("\"overwrite\"").unwrap();
+        assert_eq!(decision, ConflictDecision::Overwrite);
+    }
+
+    #[test]
+    fn events_serialize_with_a_kind_tag_and_camel_case_fields() {
+        let progress = serde_json::to_value(WireEvent::Progress {
+            bytes_done: 5,
+            bytes_total: 10,
+            files_done: 1,
+            files_total: 2,
+            bytes_per_sec: 99,
+            current: vec!["a.txt".to_string()],
+        })
+        .unwrap();
+        assert_eq!(progress["kind"], "progress");
+        assert_eq!(progress["bytesDone"], 5);
+        assert_eq!(progress["bytesPerSec"], 99);
+        assert_eq!(progress["current"][0], "a.txt");
+
+        let conflict = serde_json::to_value(WireEvent::Conflict {
+            conflict_id: 3,
+            info: ConflictInfo {
+                src_path: "/s".to_string(),
+                dst_path: "/d".to_string(),
+                src_size: 1,
+                dst_size: 2,
+                src_mtime: Some(10),
+                dst_mtime: None,
+            },
+        })
+        .unwrap();
+        assert_eq!(conflict["kind"], "conflict");
+        assert_eq!(conflict["conflictId"], 3);
+        assert_eq!(conflict["info"]["srcPath"], "/s");
+        assert_eq!(conflict["info"]["dstMtime"], serde_json::Value::Null);
+
+        let planned = serde_json::to_value(WireEvent::Planned {
+            files: 2,
+            bytes: 7,
+            skipped: vec![SkippedItem { path: "/p".to_string(), reason: "r".to_string() }],
+        })
+        .unwrap();
+        assert_eq!(planned["kind"], "planned");
+        assert_eq!(planned["skipped"][0]["reason"], "r");
+
+        let finished = serde_json::to_value(WireEvent::Finished { summary: TransferSummary::default() }).unwrap();
+        assert_eq!(finished["kind"], "finished");
+        assert_eq!(finished["summary"]["filesDone"], 0);
+        assert_eq!(finished["summary"]["cancelled"], false);
+
+        let failed = serde_json::to_value(WireEvent::Failed { error: SshError::io("boom") }).unwrap();
+        assert_eq!(failed["kind"], "failed");
+        assert_eq!(failed["error"]["code"], "io");
+    }
+
+    #[test]
+    fn listings_and_connection_info_use_camel_case() {
+        let entry = serde_json::to_value(FileEntry {
+            name: "n".to_string(),
+            path: "/n".to_string(),
+            kind: crate::fs::EntryKind::Symlink,
+            size: 1,
+            mtime: Some(2),
+            mode: Some(0o755),
+            link_target_is_dir: Some(true),
+        })
+        .unwrap();
+        assert_eq!(entry["kind"], "symlink");
+        assert_eq!(entry["linkTargetIsDir"], true);
+        assert_eq!(entry["mode"], 0o755);
+
+        let info = serde_json::to_value(ConnectionInfo {
+            profile_id: "p".to_string(),
+            host: "h".to_string(),
+            port: 22,
+            user: "u".to_string(),
+            home: "/home/u".to_string(),
+        })
+        .unwrap();
+        assert_eq!(info["profileId"], "p");
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn connect_browse_upload_and_disconnect() {
         let f = fixture().await;
