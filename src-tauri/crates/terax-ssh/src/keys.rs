@@ -397,6 +397,39 @@ pub fn change_passphrase(path: &Path, old: Option<&Secret>, new: Option<&Secret>
     inspect(path)
 }
 
+/// Appends `public_key_line` to the text of an `authorized_keys` file. Returns `None` when the
+/// same key is already listed, so deploying twice never duplicates it.
+pub fn authorized_keys_with(existing: &str, public_key_line: &str) -> Result<Option<String>> {
+    let new_key = PublicKey::from_openssh(public_key_line.trim())
+        .map_err(|err| SshError::invalid(format!("not a valid public key: {err}")))?;
+    for line in existing.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+        for index in 0..tokens.len().saturating_sub(1) {
+            let looks_like_type = ["ssh-", "ecdsa-", "sk-"].iter().any(|p| tokens[index].starts_with(p));
+            if !looks_like_type {
+                continue;
+            }
+            if let Ok(found) = PublicKey::from_openssh(&format!("{} {}", tokens[index], tokens[index + 1])) {
+                if found.key_data() == new_key.key_data() {
+                    return Ok(None);
+                }
+                break;
+            }
+        }
+    }
+    let mut out = existing.to_string();
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out.push_str(public_key_line.trim());
+    out.push('\n');
+    Ok(Some(out))
+}
+
 pub fn read_public_key(path: &Path) -> Result<String> {
     inspect(path)?
         .public_key
@@ -584,6 +617,32 @@ mod tests {
         let line = read_public_key(&dir.path().join("id_pub")).unwrap();
         assert_eq!(Some(line.clone()), info.public_key);
         assert!(line.ends_with("me@test"));
+    }
+
+    #[test]
+    fn authorized_keys_gain_a_key_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let info = generate(dir.path(), &spec("id_dep", None)).unwrap();
+        let line = info.public_key.unwrap();
+
+        let first = authorized_keys_with("", &line).unwrap().unwrap();
+        assert_eq!(first, format!("{line}\n"));
+        assert_eq!(authorized_keys_with(&first, &line).unwrap(), None);
+
+        let with_other = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJdD7y3aLq454yWBdwLWbieU1ebz9/cu7/QEXn9OIeZJ other@host";
+        let appended = authorized_keys_with(with_other, &line).unwrap().unwrap();
+        assert!(appended.starts_with(with_other));
+        assert!(appended.contains(&format!("\n{line}\n")));
+    }
+
+    #[test]
+    fn authorized_keys_detection_sees_through_options_and_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let info = generate(dir.path(), &spec("id_opt", None)).unwrap();
+        let line = info.public_key.unwrap();
+        let existing = format!("# managed by hand\n\ncommand=\"/bin/true\",no-pty {line}\n");
+        assert_eq!(authorized_keys_with(&existing, &line).unwrap(), None);
+        assert!(authorized_keys_with("garbage", "not a key").is_err());
     }
 
     #[test]

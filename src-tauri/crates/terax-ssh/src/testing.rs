@@ -132,6 +132,48 @@ impl russh::server::Handler for ServerHandler {
         Ok(())
     }
 
+    async fn tcpip_forward(
+        &mut self,
+        address: &str,
+        port: &mut u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        if !self.opts.direct_tcpip {
+            return Ok(false);
+        }
+        let Ok(requested) = u16::try_from(*port) else {
+            return Ok(false);
+        };
+        let Ok(listener) = TcpListener::bind(("127.0.0.1", requested)).await else {
+            return Ok(false);
+        };
+        let actual = listener.local_addr().map(|a| a.port()).unwrap_or(0);
+        *port = u32::from(actual);
+        let handle = session.handle();
+        let address = address.to_string();
+        tokio::spawn(async move {
+            while let Ok((mut tcp, peer)) = listener.accept().await {
+                let handle = handle.clone();
+                let address = address.clone();
+                tokio::spawn(async move {
+                    let opened = handle
+                        .channel_open_forwarded_tcpip(
+                            address,
+                            u32::from(actual),
+                            peer.ip().to_string(),
+                            u32::from(peer.port()),
+                        )
+                        .await;
+                    if let Ok(channel) = opened {
+                        let mut stream = channel.into_stream();
+                        let _ = tokio::io::copy_bidirectional(&mut stream, &mut tcp).await;
+                    }
+                });
+            }
+        });
+        Ok(true)
+    }
+
     async fn channel_open_direct_tcpip(
         &mut self,
         channel: Channel<Msg>,

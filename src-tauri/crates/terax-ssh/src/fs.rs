@@ -450,6 +450,23 @@ impl Fs {
         }
     }
 
+    /// Moves `from` onto `to`, replacing an existing file. On SFTP the replace is remove then
+    /// rename, because protocol v3 refuses to rename onto an existing name.
+    pub async fn rename_over(&self, from: &str, to: &str) -> Result<()> {
+        match self {
+            Fs::Local => self.rename(from, to).await,
+            Fs::Remote(_) => {
+                if self.rename(from, to).await.is_ok() {
+                    return Ok(());
+                }
+                if self.exists(to).await? {
+                    self.remove_file(to).await?;
+                }
+                self.rename(from, to).await
+            }
+        }
+    }
+
     pub async fn open_read(&self, path: &str, offset: u64) -> Result<Box<dyn ReadSeek>> {
         let mut reader: Box<dyn ReadSeek> = match self {
             Fs::Local => {
