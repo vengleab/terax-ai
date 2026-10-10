@@ -1,0 +1,18 @@
+[package]
+name = "tauri-plugin-terax-ssh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Tauri plugin exposing Terax SSH File Transfer commands"
+links = "tauri-plugin-terax-ssh"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = "2"
+terax-ssh = { path = "../terax-ssh" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time"] }

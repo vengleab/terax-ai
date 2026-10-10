@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ssh-transfer",
+  "description": "SSH File Transfer commands for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "terax-ssh:default"
+  ]
+}

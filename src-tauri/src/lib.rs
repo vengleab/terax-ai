@@ -191,6 +191,8 @@ pub fn run() {
         .menu(app_menu::build)
         .on_menu_event(app_menu::handle_event);
     builder
+        // fork:ssh-transfer
+        .plugin(tauri_plugin_terax_ssh::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Skip restoring VISIBLE — frontend calls window.show() after first

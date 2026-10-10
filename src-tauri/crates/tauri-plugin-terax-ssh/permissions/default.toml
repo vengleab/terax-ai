@@ -1,0 +1,3 @@
+[default]
+description = "Allows the SSH File Transfer commands"
+permissions = ["allow-ssh-ping"]
