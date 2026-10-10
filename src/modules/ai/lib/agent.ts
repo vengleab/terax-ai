@@ -161,6 +161,14 @@ export async function buildLanguageModel(
       })(resolvedModelId);
       break;
     }
+    case "github-models": {
+      // fork:github-models
+      const { buildGithubModelsModel } = await import(
+        "../providers/github-models/build"
+      );
+      built = await buildGithubModelsModel(key, resolvedModelId);
+      break;
+    }
     case "openai-compatible": {
       if (!compatURL) {
         throw new Error(

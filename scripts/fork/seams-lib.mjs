@@ -11,13 +11,26 @@ export function isOwnedPath(path, ownedPrefixes) {
   );
 }
 
+export function markersOf(config) {
+  if (Array.isArray(config.markers) && config.markers.length > 0) {
+    return config.markers;
+  }
+  return [config.marker ?? SEAM_MARKER];
+}
+
 export function evaluateSeams(config, files) {
-  const marker = config.marker ?? SEAM_MARKER;
+  const markers = markersOf(config);
+  const fallback = markers[0];
   const errors = [];
   const registered = new Set();
 
   for (const seam of config.seams) {
-    registered.add(seam.file);
+    const marker = seam.marker ?? fallback;
+    if (!markers.includes(marker)) {
+      errors.push(`${seam.file}: seam uses unknown marker "${marker}" (add it to "markers")`);
+      continue;
+    }
+    registered.add(`${seam.file}\0${marker}`);
     const text = files.get(seam.file);
     if (text === undefined) {
       errors.push(`seam file is missing: ${seam.file}`);
@@ -37,11 +50,12 @@ export function evaluateSeams(config, files) {
   }
 
   for (const [path, text] of files) {
-    if (registered.has(path) || isOwnedPath(path, config.ownedPrefixes)) {
-      continue;
-    }
-    if (countMarker(text, marker) > 0) {
-      errors.push(`${path}: unregistered "${marker}" marker (add it to seams.json)`);
+    if (isOwnedPath(path, config.ownedPrefixes)) continue;
+    for (const marker of markers) {
+      if (registered.has(`${path}\0${marker}`)) continue;
+      if (countMarker(text, marker) > 0) {
+        errors.push(`${path}: unregistered "${marker}" marker (add it to seams.json)`);
+      }
     }
   }
 

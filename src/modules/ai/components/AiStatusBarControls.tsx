@@ -40,6 +40,7 @@ import {
   StopCircleIcon,
   Tick01Icon,
 } from "@hugeicons/core-free-icons";
+import { GithubIcon } from "@hugeicons/core-free-icons"; // fork:github-models
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -71,6 +72,7 @@ const PROVIDER_ICON = {
   deepseek: DeepseekIcon,
   mistral: MistralIcon,
   openrouter: GlobeIcon,
+  "github-models": GithubIcon, // fork:github-models
   "openai-compatible": PlugIcon,
   lmstudio: ComputerIcon,
   mlx: AppleIcon,

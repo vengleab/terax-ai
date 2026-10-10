@@ -5,8 +5,8 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 ## Rules
 
 1. New code goes in new files and directories owned by the fork (listed below). Upstream files are edited only at registered seams.
-2. A seam is a small hunk (usually one to five lines) in an upstream file that delegates into fork-owned code. Every seam carries the marker `fork:ssh-transfer` in a comment, so it can be found with `git grep fork:ssh-transfer`.
-3. Every seam is registered in `scripts/fork/seams.json` with the file and the minimum marker count. `node scripts/fork/check-seams.mjs` fails if a registered seam disappears (for example after a bad merge) or if an unregistered marker shows up.
+2. A seam is a small hunk (usually one to five lines) in an upstream file that delegates into fork-owned code. Every seam carries its feature's marker in a comment (`fork:ssh-transfer`, `fork:github-models`), so it can be found with `git grep fork:`.
+3. Every seam is registered in `scripts/fork/seams.json` with the file, its marker (default: the first listed in `markers`) and the exact marker count. `node scripts/fork/check-seams.mjs` fails if a registered seam disappears (for example after a bad merge) or if an unregistered marker shows up.
 4. No new npm dependencies. New Rust dependencies live in the fork crates, never in the root `src-tauri/Cargo.toml`.
 5. Do not edit `TERAX.md`, `docs/README.md`, `.github/workflows/ci.yml`, `package.json` or `pnpm-lock.yaml`. The one exception is `.size-limit.json` (see Size budget). Fork docs live in `FORK.md` and `docs/fork/`; fork CI lives in `.github/workflows/fork-ci.yml`.
 6. Everything the fork adds is namespaced `ssh-transfer`: tab kind, sidebar view id, plugin id `terax-ssh`, store file `terax-ssh-transfer.json`, keychain service `terax-ssh-transfer`, localStorage keys `terax.sshx.*`, DOM attributes `data-sshx-*`. Upstream's roadmap lists its own SSH work, and the namespace keeps the two from colliding.
@@ -19,6 +19,7 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 | `src-tauri/crates/tauri-plugin-terax-ssh/` | Thin Tauri plugin: commands, state, event channels |
 | `src-tauri/capabilities/ssh-transfer.json` | Grants the plugin's permissions to the main window |
 | `src/modules/ssh-transfer/` | Frontend module, lazy-loaded |
+| `src/modules/ai/providers/github-models/` | GitHub Models AI provider (see `docs/fork/github-models.md`) |
 | `docs/fork/` | Fork docs, start at `docs/fork/ssh-transfer.md` |
 | `scripts/fork/` | Sync and seam tooling |
 | `.github/workflows/fork-ci.yml` | Fork CI |
@@ -35,6 +36,7 @@ The authoritative list is `scripts/fork/seams.json`. Summary:
 | `src/modules/tabs/lib/tabLabel.ts` | Label for the new tab kind |
 | `src/modules/tabs/TabBar.tsx` | Icon for the new tab kind |
 | `src/modules/sidebar/types.ts`, `SidebarRail.tsx`, `useSidebarPanel.ts` | New sidebar view id, rail button, persisted-view allow-list |
+| `src/modules/ai/config.ts`, `lib/agent.ts`, `lib/keyring.ts`, `src/settings/components/ProviderIcon.tsx`, `src/modules/ai/components/AiStatusBarControls.tsx` | `fork:github-models`: provider id, registry spreads, one `case`, key slot, two icon entries |
 | `.size-limit.json` | Total client JS limit raised from 1505 KB to 1560 KB (guarded by `budgets`, see Size budget) |
 | `src/app/App.tsx` | Seven small hunks: import, `useSshTransfer` call, palette items, sidebar branch, tab surface layer, overlays |
 
@@ -75,4 +77,5 @@ Upstream's Dependabot config groups all cargo updates. The fork crates pin `russ
 
 ## Further reading
 
+- `docs/fork/github-models.md`: the GitHub Models AI provider
 - `docs/fork/ssh-transfer.md`: the SSH File Transfer feature
