@@ -45,6 +45,14 @@ impl SshError {
         self
     }
 
+    /// Records which host the error came from, unless more specific data is already attached.
+    pub fn with_hop(self, host: &str, port: u16) -> Self {
+        if self.data.is_some() {
+            return self;
+        }
+        self.with_data(serde_json::json!({ "host": host, "port": port }))
+    }
+
     pub fn invalid(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Invalid, message)
     }

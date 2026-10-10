@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { evaluateSeams } from "./seams-lib.mjs";
+import { evaluateBudgets, evaluateSeams } from "./seams-lib.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
@@ -33,10 +33,15 @@ for (const path of listed) {
   }
 }
 
-const errors = evaluateSeams(config, files);
+const errors = [
+  ...evaluateSeams(config, files),
+  ...evaluateBudgets(config, files),
+];
 if (errors.length > 0) {
   console.error("fork seam check failed:");
   for (const error of errors) console.error(`  - ${error}`);
   process.exit(1);
 }
-console.log(`fork seam check passed (${config.seams.length} registered files)`);
+console.log(
+  `fork seam check passed (${config.seams.length} registered files, ${(config.budgets ?? []).length} budget)`,
+);

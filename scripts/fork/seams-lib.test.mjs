@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { countMarker, evaluateSeams, isOwnedPath } from "./seams-lib.mjs";
+import {
+  countMarker,
+  evaluateBudgets,
+  evaluateSeams,
+  isOwnedPath,
+  parseSizeKb,
+} from "./seams-lib.mjs";
 
 const config = {
   marker: "fork:ssh-transfer",
@@ -63,5 +69,42 @@ describe("evaluateSeams", () => {
     };
     const files = new Map([["a.ts", "fork:ssh-transfer fork:ssh-transfer"]]);
     expect(evaluateSeams(capped, files)[0]).toContain("at most 1");
+  });
+});
+
+describe("parseSizeKb", () => {
+  it("reads KB and MB values", () => {
+    expect(parseSizeKb("1560 KB")).toBe(1560);
+    expect(parseSizeKb("1.5 MB")).toBe(1536);
+    expect(parseSizeKb("nonsense")).toBeUndefined();
+  });
+});
+
+describe("evaluateBudgets", () => {
+  const budgeted = {
+    budgets: [{ file: ".size-limit.json", name: "total", minKb: 1560 }],
+  };
+  const sizeFile = (limit) =>
+    new Map([[".size-limit.json", JSON.stringify([{ name: "total", limit }])]]);
+
+  it("passes when the limit is at or above the fork minimum", () => {
+    expect(evaluateBudgets(budgeted, sizeFile("1560 KB"))).toEqual([]);
+    expect(evaluateBudgets(budgeted, sizeFile("2 MB"))).toEqual([]);
+  });
+
+  it("reports a limit reverted by an upstream merge", () => {
+    expect(evaluateBudgets(budgeted, sizeFile("1505 KB"))[0]).toContain(
+      "needs at least 1560 KB",
+    );
+  });
+
+  it("reports a missing file or entry", () => {
+    expect(evaluateBudgets(budgeted, new Map())[0]).toContain("missing");
+    const renamed = new Map([[".size-limit.json", "[]"]]);
+    expect(evaluateBudgets(budgeted, renamed)[0]).toContain('no entry named "total"');
+  });
+
+  it("does nothing without budgets", () => {
+    expect(evaluateBudgets({}, new Map())).toEqual([]);
   });
 });

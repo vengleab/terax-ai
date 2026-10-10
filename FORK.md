@@ -8,7 +8,7 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 2. A seam is a small hunk (usually one to five lines) in an upstream file that delegates into fork-owned code. Every seam carries the marker `fork:ssh-transfer` in a comment, so it can be found with `git grep fork:ssh-transfer`.
 3. Every seam is registered in `scripts/fork/seams.json` with the file and the minimum marker count. `node scripts/fork/check-seams.mjs` fails if a registered seam disappears (for example after a bad merge) or if an unregistered marker shows up.
 4. No new npm dependencies. New Rust dependencies live in the fork crates, never in the root `src-tauri/Cargo.toml`.
-5. Do not edit `TERAX.md`, `docs/README.md`, `.github/workflows/ci.yml`, `package.json`, `pnpm-lock.yaml` or `.size-limit.json`. Fork docs live in `FORK.md` and `docs/fork/`; fork CI lives in `.github/workflows/fork-ci.yml`.
+5. Do not edit `TERAX.md`, `docs/README.md`, `.github/workflows/ci.yml`, `package.json` or `pnpm-lock.yaml`. The one exception is `.size-limit.json` (see Size budget). Fork docs live in `FORK.md` and `docs/fork/`; fork CI lives in `.github/workflows/fork-ci.yml`.
 6. Everything the fork adds is namespaced `ssh-transfer`: tab kind, sidebar view id, plugin id `terax-ssh`, store file `terax-ssh-transfer.json`, keychain service `terax-ssh-transfer`, localStorage keys `terax.sshx.*`, DOM attributes `data-sshx-*`. Upstream's roadmap lists its own SSH work, and the namespace keeps the two from colliding.
 
 ## Fork-owned paths
@@ -31,12 +31,18 @@ The authoritative list is `scripts/fork/seams.json`. Summary:
 |---|---|
 | `src-tauri/Cargo.toml` | One path dependency on the plugin crate |
 | `src-tauri/src/lib.rs` | One `.plugin(...)` call |
-| `src/modules/tabs/lib/useTabs.ts` | `SshTransferTab` joins the `Tab` union |
+| `src/modules/tabs/lib/useTabs.ts` | `SshTransferTab` type import and `Tab` union member |
 | `src/modules/tabs/lib/tabLabel.ts` | Label for the new tab kind |
 | `src/modules/tabs/TabBar.tsx` | Icon for the new tab kind |
-| `src/app/components/WorkspaceSurface.tsx` | Renders the new tab kind |
-| `src/modules/sidebar/types.ts`, `SidebarRail.tsx`, `useSidebarPanel.ts` | New sidebar view |
-| `src/app/App.tsx` | Mounts the module hook and the sidebar panel, adds palette items |
+| `src/modules/sidebar/types.ts`, `SidebarRail.tsx`, `useSidebarPanel.ts` | New sidebar view id, rail button, persisted-view allow-list |
+| `.size-limit.json` | Total client JS limit raised from 1505 KB to 1560 KB (guarded by `budgets`, see Size budget) |
+| `src/app/App.tsx` | Seven small hunks: import, `useSshTransfer` call, palette items, sidebar branch, tab surface layer, overlays |
+
+### Size budget
+
+The module adds about 48 kB gzipped across three lazy chunks (`Overlays`, `SshTransferStack`, `SshSidebar`), which does not fit upstream's headroom under the `total client JS` limit (1505 KB). The fork raises that one number to 1560 KB in `.size-limit.json`. JSON cannot carry a marker comment, so the guard is the `budgets` entry in `scripts/fork/seams.json`: `check-seams.mjs` fails if the limit drops below 1560 KB, which is what an upstream merge reverting the value would do. When that happens, re-apply the number. The eager startup budget (540 KB) is untouched, and `eager-budget.test.ts` keeps the module out of the startup graph.
+
+`WorkspaceSurface.tsx` is deliberately untouched: the transfer tab renders as a sibling layer from `App.tsx`.
 
 To remove the feature: delete the fork-owned paths, delete every line marked `fork:ssh-transfer` (and the now-unused imports), and delete the entry from `Cargo.lock` with `cargo metadata`.
 

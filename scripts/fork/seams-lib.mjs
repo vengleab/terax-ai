@@ -47,3 +47,46 @@ export function evaluateSeams(config, files) {
 
   return errors;
 }
+
+export function parseSizeKb(value) {
+  const match = /^\s*(\d+(?:\.\d+)?)\s*(KB|MB)\s*$/i.exec(String(value));
+  if (!match) return undefined;
+  const amount = Number(match[1]);
+  return match[2].toUpperCase() === "MB" ? amount * 1024 : amount;
+}
+
+/**
+ * Seams that live in JSON files, which cannot carry a marker comment.
+ * Each budget asserts that a named size-limit entry is at least `minKb`.
+ */
+export function evaluateBudgets(config, files) {
+  const errors = [];
+  for (const budget of config.budgets ?? []) {
+    const text = files.get(budget.file);
+    if (text === undefined) {
+      errors.push(`budget file is missing: ${budget.file}`);
+      continue;
+    }
+    let entries;
+    try {
+      entries = JSON.parse(text);
+    } catch {
+      errors.push(`${budget.file}: not valid JSON`);
+      continue;
+    }
+    const entry = Array.isArray(entries)
+      ? entries.find((e) => e?.name === budget.name)
+      : undefined;
+    if (!entry) {
+      errors.push(`${budget.file}: no entry named "${budget.name}"`);
+      continue;
+    }
+    const kb = parseSizeKb(entry.limit);
+    if (kb === undefined || kb < budget.minKb) {
+      errors.push(
+        `${budget.file}: "${budget.name}" limit is ${entry.limit}, the fork needs at least ${budget.minKb} KB (an upstream merge may have reverted it)`,
+      );
+    }
+  }
+  return errors;
+}

@@ -392,7 +392,9 @@ async fn connect_direct(
                 });
             }
         };
-        authenticate(&mut handle, spec).await?;
+        authenticate(&mut handle, spec)
+            .await
+            .map_err(|err| err.with_hop(&host, port))?;
         Ok::<_, SshError>(handle)
     };
 
@@ -615,6 +617,9 @@ mod tests {
         missing.credentials.password = None;
         let err = SshSession::connect(&ctx, &missing, None).await.err().unwrap();
         assert_eq!(err.code, ErrorCode::PasswordRequired);
+        let hop = err.data.expect("the failing host is reported");
+        assert_eq!(hop["host"], "127.0.0.1");
+        assert_eq!(hop["port"], server.port);
 
         SshSession::connect(&ctx, &password_spec(&server, "alice", "secret"), None)
             .await

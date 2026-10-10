@@ -35,6 +35,7 @@ import {
   CheckmarkCircle01Icon,
   Clock01Icon,
   ComputerTerminal02Icon,
+  FolderTransferIcon, // fork:ssh-transfer
   GitCompareIcon,
   Globe02Icon,
   IncognitoIcon,
@@ -678,6 +679,17 @@ export function TabIcon({ tab }: { tab: Tab }) {
     return (
       <HugeiconsIcon
         icon={GitCompareIcon}
+        size={14}
+        strokeWidth={2}
+        className="shrink-0"
+      />
+    );
+  }
+  // fork:ssh-transfer
+  if (tab.kind === "ssh-transfer") {
+    return (
+      <HugeiconsIcon
+        icon={FolderTransferIcon}
         size={14}
         strokeWidth={2}
         className="shrink-0"
