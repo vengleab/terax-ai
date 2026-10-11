@@ -46,6 +46,9 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     async set(key: string, value: unknown) {
       tauri.index.set(key, value);
     }
+    async delete(key: string) {
+      return tauri.index.delete(key);
+    }
     async save() {}
   },
 }));
@@ -177,5 +180,42 @@ describe("using a saved key", () => {
     await expect(
       agent.buildLanguageModel("openai", { ...keyring.EMPTY_PROVIDER_KEYS }, "gpt-5.4-mini"),
     ).rejects.toThrow(/No API key configured for openai/);
+  });
+});
+
+describe("a Google Vertex service account key file", () => {
+  beforeEach(() => {
+    tauri.secrets.clear();
+    tauri.index.clear();
+    tauri.calls.length = 0;
+  });
+
+  const vertexCalls = () => secretCalls().filter((c) => c.account === "google-vertex-service-account" || c.accounts?.includes("google-vertex-service-account"));
+
+  it("is saved, listed and removed as a plain path, with no keychain access at all", async () => {
+    const first = await launch();
+    await first.keyring.setKey("google-vertex", "/home/me/Downloads/key.json");
+
+    const second = await launch();
+    const keys = await second.keyring.getAllKeys();
+    expect(keys["google-vertex"]).toBe("/home/me/Downloads/key.json");
+    expect(second.keyring.hasAnyKey(keys)).toBe(true);
+    expect(await second.keyring.getKey("google-vertex")).toBe("/home/me/Downloads/key.json");
+
+    await second.keyring.clearKey("google-vertex");
+    expect((await second.keyring.getAllKeys())["google-vertex"]).toBeNull();
+    expect(vertexCalls()).toHaveLength(0);
+    expect([...tauri.secrets.keys()]).toEqual([]);
+  });
+
+  it("does not disturb how the other providers are listed", async () => {
+    tauri.secrets.set("openai-api-key", "sk-real-openai");
+    const first = await launch();
+    await first.keyring.setKey("google-vertex", "/k/key.json");
+    const keys = await first.keyring.getAllKeys();
+    expect(keys.openai).toBe(first.lazy.storedMarker("openai-api-key"));
+    expect(keys["google-vertex"]).toBe("/k/key.json");
+    expect(keys.anthropic).toBeNull();
+    expect(vertexCalls()).toHaveLength(0);
   });
 });

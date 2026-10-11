@@ -10,14 +10,13 @@ import {
 import { EMPTY_PROVIDER_KEYS } from "../../lib/keyring";
 import { createVertexFetch, PLACEHOLDER_BASE, resolveRequest } from "./build";
 import { testConnection } from "./connection";
-import { makePointer } from "./credentialStore";
 import {
   GOOGLE_VERTEX_ACCOUNT,
   GOOGLE_VERTEX_ID,
   GOOGLE_VERTEX_MODEL_ID,
   GOOGLE_VERTEX_PROVIDER,
 } from "./data";
-import { parseServiceAccount, type TokenManager } from "./serviceAccount";
+import { parseServiceAccount, type ServiceAccount, type TokenCache, type TokenManager } from "./serviceAccount";
 import { createVertexState, DEFAULT_SETTINGS, type KeyValueStore, type VertexSettings } from "./settings";
 import { makeTestAccount } from "./testKey";
 
@@ -27,20 +26,41 @@ vi.mock("@ai-sdk/openai-compatible", () => ({ createOpenAICompatible }));
 const proxyFetch = vi.hoisted(() => vi.fn());
 vi.mock("../../lib/proxyFetch", () => ({ proxyFetch, createProxyFetch: () => proxyFetch }));
 
-const credentials = vi.hoisted(() => ({ text: "" }));
-vi.mock("./credentialStore", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./credentialStore")>();
-  return { ...actual, loadAccountText: vi.fn(async () => credentials.text) };
-});
+vi.mock("@tauri-apps/plugin-store", () => ({
+  LazyStore: class {
+    private data = new Map<string, unknown>();
+    async get(key: string) {
+      return this.data.get(key);
+    }
+    async set(key: string, value: unknown) {
+      this.data.set(key, value);
+    }
+    async delete(key: string) {
+      return this.data.delete(key);
+    }
+    async save() {}
+  },
+}));
+
+const keyFile = vi.hoisted(() => ({ files: new Map<string, string>(), reads: [] as string[] }));
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(async (cmd: string, args: { path: string }) => {
+    if (cmd !== "fs_read_file") throw new Error(`unexpected command ${cmd}`);
+    keyFile.reads.push(args.path);
+    const content = keyFile.files.get(args.path);
+    if (content === undefined) throw new Error("No such file or directory");
+    return { kind: "text", content, size: content.length, mtime: 0 };
+  }),
+}));
 
 const settings = (over: Partial<VertexSettings> = {}): VertexSettings => ({ ...DEFAULT_SETTINGS, ...over });
 
-function fakeTokens(...tokens: string[]): TokenManager & { invalidated: number } {
+function fakeTokens(...tokens: string[]): TokenCache & TokenManager & { invalidated: number } {
   let i = 0;
   const manager = {
     invalidated: 0,
-    get: async () => tokens[Math.min(i, tokens.length - 1)],
-    invalidate() {
+    get: async (_sa?: ServiceAccount) => tokens[Math.min(i, tokens.length - 1)],
+    invalidate(_sa?: ServiceAccount) {
       manager.invalidated++;
       i++;
     },
@@ -89,7 +109,8 @@ describe("createVertexFetch", () => {
   it("sends the bearer token to the real endpoint with the chosen model", async () => {
     const sa = parseServiceAccount((await makeTestAccount()).json);
     const fetchImpl = vi.fn().mockResolvedValue(new Response("ok", { status: 200 }));
-    const f = createVertexFetch(sa, {
+    const f = createVertexFetch({
+      loadAccount: async () => sa,
       fetchImpl: fetchImpl as unknown as typeof fetch,
       tokens: fakeTokens("ya29.one"),
       getSettings: async () => settings({ modelId: "gemini-2.5-pro" }),
@@ -112,7 +133,8 @@ describe("createVertexFetch", () => {
     const sa = parseServiceAccount((await makeTestAccount()).json);
     const fetchImpl = vi.fn().mockImplementation(async () => new Response("ok"));
     let current = settings();
-    const f = createVertexFetch(sa, {
+    const f = createVertexFetch({
+      loadAccount: async () => sa,
       fetchImpl: fetchImpl as unknown as typeof fetch,
       tokens: fakeTokens("t"),
       getSettings: async () => current,
@@ -131,7 +153,8 @@ describe("createVertexFetch", () => {
       .fn()
       .mockResolvedValueOnce(new Response("expired", { status: 401 }))
       .mockResolvedValueOnce(new Response("ok", { status: 200 }));
-    const f = createVertexFetch(sa, {
+    const f = createVertexFetch({
+      loadAccount: async () => sa,
       fetchImpl: fetchImpl as unknown as typeof fetch,
       tokens,
       getSettings: async () => settings(),
@@ -142,7 +165,8 @@ describe("createVertexFetch", () => {
     expect((fetchImpl.mock.calls[1][1].headers as Headers).get("authorization")).toBe("Bearer new");
 
     const always401 = vi.fn().mockImplementation(async () => new Response("no", { status: 401 }));
-    const g = createVertexFetch(sa, {
+    const g = createVertexFetch({
+      loadAccount: async () => sa,
       fetchImpl: always401 as unknown as typeof fetch,
       tokens: fakeTokens("a", "b"),
       getSettings: async () => settings(),
@@ -153,23 +177,28 @@ describe("createVertexFetch", () => {
 });
 
 describe("building the model", () => {
+  const KEY_PATH = "/home/me/Downloads/key.json";
+
   beforeEach(() => {
     createOpenAICompatible.mockReset();
     proxyFetch.mockReset();
+    keyFile.files.clear();
+    keyFile.reads.length = 0;
   });
 
-  it("loads the key file, signs in, and builds a client against the placeholder base", async () => {
+  it("reads the key file, signs in, and builds a client against the placeholder base", async () => {
     const account = await makeTestAccount();
-    credentials.text = account.json;
+    keyFile.files.set(KEY_PATH, account.json);
     proxyFetch.mockResolvedValue(new Response(JSON.stringify({ access_token: "ya29.x", expires_in: 3600 })));
     const model = { modelId: "built" };
     const factory = vi.fn().mockReturnValue(model);
     createOpenAICompatible.mockReturnValue(factory);
 
     const { buildGoogleVertexModel } = await import("./build");
-    const built = await buildGoogleVertexModel(makePointer(3, "0123456789ab"));
+    const built = await buildGoogleVertexModel(KEY_PATH);
 
     expect(built).toBe(model);
+    expect(keyFile.reads).toEqual([KEY_PATH]);
     expect(proxyFetch).toHaveBeenCalledTimes(1);
     expect(proxyFetch.mock.calls[0][0]).toBe("https://oauth2.googleapis.com/token");
     expect(factory).toHaveBeenCalledWith(GOOGLE_VERTEX_MODEL_ID);
@@ -179,23 +208,65 @@ describe("building the model", () => {
     expect(typeof options.fetch).toBe("function");
   });
 
-  it("is chosen by buildLanguageModel and needs a saved account", async () => {
+  it("says which file could not be read when it is missing or not a key", async () => {
+    const { buildGoogleVertexModel } = await import("./build");
+    await expect(buildGoogleVertexModel("/gone/key.json")).rejects.toThrow(/Could not read \/gone\/key\.json/);
+    keyFile.files.set("/notes.json", JSON.stringify({ hello: "world" }));
+    await expect(buildGoogleVertexModel("/notes.json")).rejects.toThrow(/not a service account key/);
+    expect(proxyFetch).not.toHaveBeenCalled();
+  });
+
+  it("reads the file again for each request, so a replaced file is used", async () => {
+    const first = await makeTestAccount();
+    const second = await makeTestAccount();
+    keyFile.files.set(KEY_PATH, first.json);
+    proxyFetch.mockImplementation(async (url: string) =>
+      url === "https://oauth2.googleapis.com/token"
+        ? new Response(JSON.stringify({ access_token: `tok-${proxyFetch.mock.calls.length}`, expires_in: 3600 }))
+        : new Response("ok"),
+    );
+    createOpenAICompatible.mockReturnValue(vi.fn().mockReturnValue({}));
+
+    const { buildGoogleVertexModel } = await import("./build");
+    await buildGoogleVertexModel(KEY_PATH);
+    const send = createOpenAICompatible.mock.calls[0][0].fetch as typeof fetch;
+    await send(`${PLACEHOLDER_BASE}/chat/completions`, { method: "POST", body: "{}" });
+    expect(keyFile.reads).toHaveLength(2);
+
+    // Same key: the access token is reused, no second sign-in.
+    const signIns = () => proxyFetch.mock.calls.filter(([u]) => u === "https://oauth2.googleapis.com/token").length;
+    expect(signIns()).toBe(1);
+
+    // A different key in the same file signs in again.
+    keyFile.files.set(KEY_PATH, second.json);
+    await send(`${PLACEHOLDER_BASE}/chat/completions`, { method: "POST", body: "{}" });
+    expect(signIns()).toBe(2);
+
+    // A file that went missing fails the request with a clear message.
+    keyFile.files.delete(KEY_PATH);
+    await expect(send(`${PLACEHOLDER_BASE}/chat/completions`, { method: "POST", body: "{}" })).rejects.toThrow(
+      /Could not read \/home\/me\/Downloads\/key\.json/,
+    );
+  });
+
+  it("is chosen by buildLanguageModel and needs a chosen key file", async () => {
     const { buildLanguageModel } = await import("../../lib/agent");
     await expect(buildLanguageModel(GOOGLE_VERTEX_ID, EMPTY_PROVIDER_KEYS, GOOGLE_VERTEX_MODEL_ID)).rejects.toThrow(
       /No API key configured for google-vertex/,
     );
 
     const account = await makeTestAccount();
-    credentials.text = account.json;
+    keyFile.files.set(KEY_PATH, account.json);
     proxyFetch.mockResolvedValue(new Response(JSON.stringify({ access_token: "ya29.x", expires_in: 3600 })));
     const model = { modelId: "routed" };
     createOpenAICompatible.mockReturnValue(vi.fn().mockReturnValue(model));
     const built = await buildLanguageModel(
       GOOGLE_VERTEX_ID,
-      { ...EMPTY_PROVIDER_KEYS, [GOOGLE_VERTEX_ID]: makePointer(3, "aaaaaaaaaaaa") },
+      { ...EMPTY_PROVIDER_KEYS, [GOOGLE_VERTEX_ID]: KEY_PATH },
       GOOGLE_VERTEX_MODEL_ID,
     );
     expect(built).toBe(model);
+    expect(keyFile.reads).toContain(KEY_PATH);
   });
 });
 
@@ -269,9 +340,17 @@ describe("settings state", () => {
     expect(await state.getSettings()).toEqual({ location: "us-east5", modelId: "gemini-2.5-pro", projectOverride: "" });
 
     expect(await state.getAccount()).toBeNull();
-    await state.setAccount({ clientEmail: "a@b.iam.gserviceaccount.com", projectId: "p", parts: 3 });
-    expect((await state.getAccount())?.parts).toBe(3);
+    await state.setAccount({ keyFilePath: "/k/key.json", clientEmail: "a@b.iam.gserviceaccount.com", projectId: "p" });
+    expect(await state.getAccount()).toEqual({
+      keyFilePath: "/k/key.json",
+      clientEmail: "a@b.iam.gserviceaccount.com",
+      projectId: "p",
+    });
     await state.setAccount(null);
     expect(await state.getAccount()).toBeNull();
+
+    expect(await state.getLastDirectory()).toBeNull();
+    await state.setLastDirectory("/k");
+    expect(await state.getLastDirectory()).toBe("/k");
   });
 });

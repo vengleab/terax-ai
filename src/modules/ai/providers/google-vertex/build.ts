@@ -1,15 +1,10 @@
 import type { LanguageModel } from "ai";
 import { proxyFetch } from "../../lib/proxyFetch";
 import { rewriteModel } from "../requestBody";
-import { loadAccountText } from "./credentialStore";
 import { GOOGLE_VERTEX_ID, GOOGLE_VERTEX_MODEL_ID } from "./data";
 import { vertexBaseUrl, vertexModelName } from "./endpoint";
-import {
-  createTokenManager,
-  parseServiceAccount,
-  type ServiceAccount,
-  type TokenManager,
-} from "./serviceAccount";
+import { readServiceAccountFile } from "./keyFile";
+import { createTokenCache, type ServiceAccount, type TokenCache } from "./serviceAccount";
 import { type VertexSettings, vertexState } from "./settings";
 
 /** The AI SDK needs a base URL up front; the real one depends on settings that can change, so it is filled in per request. */
@@ -17,7 +12,9 @@ export const PLACEHOLDER_BASE = "https://vertex.terax.invalid/v1";
 
 export type VertexFetchDeps = {
   fetchImpl?: typeof fetch;
-  tokens: TokenManager;
+  tokens: TokenCache;
+  /** Reads the key file. Called for every request, so a replaced or moved file is noticed straight away. */
+  loadAccount: () => Promise<ServiceAccount>;
   getSettings?: () => Promise<VertexSettings>;
 };
 
@@ -42,34 +39,36 @@ export function resolveRequest(
   };
 }
 
-export function createVertexFetch(sa: ServiceAccount, deps: VertexFetchDeps): typeof fetch {
+export function createVertexFetch(deps: VertexFetchDeps): typeof fetch {
   const fetchImpl = deps.fetchImpl ?? proxyFetch;
   const getSettings = deps.getSettings ?? (() => vertexState.getSettings());
 
   return async (input, init) => {
+    const sa = await deps.loadAccount();
     const { url, model } = resolveRequest(sa, await getSettings(), input);
     const body = rewriteModel(init?.body, model);
     const send = async (): Promise<Response> => {
       const headers = new Headers(init?.headers);
-      headers.set("Authorization", `Bearer ${await deps.tokens.get()}`);
+      headers.set("Authorization", `Bearer ${await deps.tokens.get(sa)}`);
       return fetchImpl(url, { ...init, headers, body });
     };
     const first = await send();
     if (first.status !== 401) return first;
     await first.body?.cancel().catch(() => {});
-    deps.tokens.invalidate();
+    deps.tokens.invalidate(sa);
     return send();
   };
 }
 
-export async function buildGoogleVertexModel(pointer: string): Promise<LanguageModel> {
-  const sa = parseServiceAccount(await loadAccountText(pointer));
-  const tokens = createTokenManager(sa);
-  await tokens.get();
+/** `keyFilePath` is the service account JSON file the user chose in Settings. */
+export async function buildGoogleVertexModel(keyFilePath: string): Promise<LanguageModel> {
+  const loadAccount = () => readServiceAccountFile(keyFilePath);
+  const tokens = createTokenCache();
+  await tokens.get(await loadAccount());
   const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
   return createOpenAICompatible({
     name: GOOGLE_VERTEX_ID,
     baseURL: PLACEHOLDER_BASE,
-    fetch: createVertexFetch(sa, { tokens }),
+    fetch: createVertexFetch({ tokens, loadAccount }),
   })(GOOGLE_VERTEX_MODEL_ID);
 }

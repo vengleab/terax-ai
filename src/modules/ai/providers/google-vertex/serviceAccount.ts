@@ -12,6 +12,8 @@ export type ServiceAccount = {
   privateKey: string;
   projectId: string;
   tokenUri: string;
+  /** Identifies this particular key, so a replaced key file is not served an old token. */
+  keyId: string;
 };
 
 export type VertexAuthFailure = "invalid_key" | "rejected" | "network" | "failed";
@@ -36,6 +38,16 @@ export function safeTokenUri(candidate: unknown): string {
   } catch {
     return DEFAULT_TOKEN_URI;
   }
+}
+
+/** A short checksum that tells two keys apart. It is not a security measure and reveals nothing useful about the key. */
+function fingerprint(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 /** Reads and checks a downloaded service account key file. Never echoes the private key in errors. */
@@ -68,11 +80,13 @@ export function parseServiceAccount(text: string): ServiceAccount {
   if (typeof projectId !== "string" || !projectId.trim()) {
     throw new VertexAuthError("invalid_key", "The key file has no project_id.");
   }
+  const keyId = `${typeof o.private_key_id === "string" ? o.private_key_id : ""}:${fingerprint(privateKey)}`;
   return {
     clientEmail,
     privateKey,
     projectId: projectId.trim(),
     tokenUri: safeTokenUri(o.token_uri),
+    keyId,
   };
 }
 
@@ -200,25 +214,49 @@ export type TokenManager = {
   invalidate(): void;
 };
 
-export function createTokenManager(sa: ServiceAccount, deps: TokenDeps = {}): TokenManager {
+export type TokenCache = {
+  get(sa: ServiceAccount): Promise<string>;
+  invalidate(sa: ServiceAccount): void;
+};
+
+function identity(sa: ServiceAccount): string {
+  return `${sa.clientEmail}|${sa.keyId}|${sa.tokenUri}`;
+}
+
+/** Keeps one access token per service account key, renewing it shortly before it expires. */
+export function createTokenCache(deps: TokenDeps = {}): TokenCache {
   const now = deps.now ?? Date.now;
-  let cached: AccessToken | null = null;
-  let inflight: Promise<AccessToken> | null = null;
+  const cached = new Map<string, AccessToken>();
+  const inflight = new Map<string, Promise<AccessToken>>();
   return {
-    async get() {
-      if (cached && cached.expiresAtMs - now() > REFRESH_SKEW_MS) return cached.accessToken;
-      inflight ??= fetchAccessToken(sa, deps)
-        .then((token) => {
-          cached = token;
-          return token;
-        })
-        .finally(() => {
-          inflight = null;
-        });
-      return (await inflight).accessToken;
+    async get(sa) {
+      const id = identity(sa);
+      const hit = cached.get(id);
+      if (hit && hit.expiresAtMs - now() > REFRESH_SKEW_MS) return hit.accessToken;
+      let pending = inflight.get(id);
+      if (!pending) {
+        pending = fetchAccessToken(sa, deps)
+          .then((token) => {
+            cached.set(id, token);
+            return token;
+          })
+          .finally(() => {
+            inflight.delete(id);
+          });
+        inflight.set(id, pending);
+      }
+      return (await pending).accessToken;
     },
-    invalidate() {
-      cached = null;
+    invalidate(sa) {
+      cached.delete(identity(sa));
     },
+  };
+}
+
+export function createTokenManager(sa: ServiceAccount, deps: TokenDeps = {}): TokenManager {
+  const cache = createTokenCache(deps);
+  return {
+    get: () => cache.get(sa),
+    invalidate: () => cache.invalidate(sa),
   };
 }

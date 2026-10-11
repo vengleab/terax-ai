@@ -20,6 +20,10 @@ macOS ties "Always Allow" to the signature of the running app. If your build is 
 - If the index cannot be read, the old behavior is used (read the secret store directly), so a broken index never hides your keys.
 - The in-memory copy is cleared when another window changes a key, using the existing keys-changed event.
 
+### Accounts that are not in the keychain
+
+A provider can register its key slot as an **external account** (`createLazyKeys({ external })`, a map from account name to `{ get, set, delete }`). For those accounts `lazyKeys.ts` answers `secrets_get`, `secrets_get_all` (also inside a mixed batch, in order), `secrets_set` and `secrets_delete` from the backend and never reads the secret store or the index, and the value is returned as it is (not a marker), so `resolveSecret` passes it through. Google Vertex AI uses this: its "key" is the path of the service account file the user chose, kept in plain settings (see `docs/fork/google-vertex.md`). A backend that fails is treated as "no value" in a batch so one broken provider cannot hide the others.
+
 ## Limits
 
 - **Verified here:** unit tests for the index (first run, later launches with zero reads, new providers, denied reads, concurrent callers, save and delete, stale entries, fallback), integration tests through `keyring.ts` and `agent.ts` including simulated second and third launches, and a browser run with a mocked backend that counted secret-store reads: first launch 11 (one per account), later launches 0, opening Settings 0.

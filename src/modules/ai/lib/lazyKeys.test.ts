@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   accountOfMarker,
   createLazyKeys,
+  type ExternalSecret,
   isStoredSecret,
   type KeyValueStore,
   storedMarker,
@@ -24,7 +25,7 @@ type Setup = ReturnType<typeof setup>;
 
 function setup(
   secrets: Record<string, string | undefined>,
-  options: { store?: KeyValueStore; denied?: Set<string> } = {},
+  options: { store?: KeyValueStore; denied?: Set<string>; external?: Map<string, ExternalSecret> } = {},
 ) {
   const calls: { cmd: string; account?: string }[] = [];
   const denied = options.denied ?? new Set<string>();
@@ -57,6 +58,7 @@ function setup(
     store: () => store,
     service: SERVICE,
     onKeysChanged: (callback) => listeners.push(callback),
+    external: options.external,
   });
   const getAll = (accounts: string[]) =>
     keys.invoke<(string | null)[]>("secrets_get_all", { service: SERVICE, accounts });
@@ -246,5 +248,102 @@ describe("everything else", () => {
     const name = /KEYS_CHANGED_EVENT = "([^"]+)"/.exec(store)?.[1];
     expect(name).toBeTruthy();
     expect(mine).toContain(`"${name}"`);
+  });
+});
+
+describe("external accounts", () => {
+  function fileBacked(initial: string | null = null) {
+    const state = { value: initial, reads: 0 };
+    const backend: ExternalSecret = {
+      get: async () => {
+        state.reads++;
+        return state.value;
+      },
+      set: async (v) => {
+        state.value = v;
+      },
+      delete: async () => {
+        state.value = null;
+      },
+    };
+    return { state, backend };
+  }
+  const EXTERNAL = "vertex-account";
+
+  it("answers a single lookup with the value itself, never touching the secret store or the index", async () => {
+    const { backend } = fileBacked("/k/key.json");
+    const s = setup({}, { external: new Map([[EXTERNAL, backend]]) });
+    expect(await s.keys.invoke("secrets_get", { service: SERVICE, account: EXTERNAL })).toBe("/k/key.json");
+    expect(s.real).not.toHaveBeenCalled();
+    expect(s.memory.data.size).toBe(0);
+  });
+
+  it("keeps the order in a mixed batch and only sends the other accounts to the keychain path", async () => {
+    const { backend } = fileBacked("/k/key.json");
+    const s = setup({ a: "key-a", c: "key-c" }, { external: new Map([[EXTERNAL, backend]]) });
+    const result = await s.getAll(["a", EXTERNAL, "b", "c"]);
+    expect(result).toEqual([storedMarker("a"), "/k/key.json", null, storedMarker("c")]);
+    expect(secretReads(s).map((c) => c.account)).toEqual(["a", "b", "c"]);
+  });
+
+  it("answers an all-external batch without any secret store call, and null when nothing is chosen", async () => {
+    const { backend } = fileBacked(null);
+    const s = setup({}, { external: new Map([[EXTERNAL, backend]]) });
+    expect(await s.getAll([EXTERNAL])).toEqual([null]);
+    expect(s.real).not.toHaveBeenCalled();
+  });
+
+  it("treats a failing backend as no value instead of failing the whole batch", async () => {
+    const broken: ExternalSecret = {
+      get: async () => {
+        throw new Error("settings unavailable");
+      },
+      set: async () => {},
+      delete: async () => {},
+    };
+    const s = setup({ a: "key-a" }, { external: new Map([[EXTERNAL, broken]]) });
+    expect(await s.getAll(["a", EXTERNAL])).toEqual([storedMarker("a"), null]);
+  });
+
+  it("saves and removes through the backend, not the secret store, and leaves the index alone", async () => {
+    const { backend, state } = fileBacked();
+    const s = setup({}, { external: new Map([[EXTERNAL, backend]]) });
+    await s.keys.invoke("secrets_set", { service: SERVICE, account: EXTERNAL, password: "/k/key.json" });
+    expect(state.value).toBe("/k/key.json");
+    await s.keys.invoke("secrets_delete", { service: SERVICE, account: EXTERNAL });
+    expect(state.value).toBeNull();
+    expect(s.real).not.toHaveBeenCalled();
+    expect(s.memory.data.size).toBe(0);
+  });
+
+  it("lets a failing save through to the caller", async () => {
+    const failing: ExternalSecret = {
+      get: async () => null,
+      set: async () => {
+        throw new Error("disk full");
+      },
+      delete: async () => {},
+    };
+    const s = setup({}, { external: new Map([[EXTERNAL, failing]]) });
+    await expect(
+      s.keys.invoke("secrets_set", { service: SERVICE, account: EXTERNAL, password: "/k/key.json" }),
+    ).rejects.toThrow("disk full");
+  });
+
+  it("returns the path as a plain value, so resolveSecret passes it straight through", async () => {
+    const { backend } = fileBacked("/k/key.json");
+    const s = setup({}, { external: new Map([[EXTERNAL, backend]]) });
+    const [value] = await s.getAll([EXTERNAL]);
+    expect(isStoredSecret(value)).toBe(false);
+    expect(await s.keys.resolveSecret(value)).toBe("/k/key.json");
+    expect(s.real).not.toHaveBeenCalled();
+  });
+
+  it("treats other accounts and other services exactly as before", async () => {
+    const { backend, state } = fileBacked("/k/key.json");
+    const s = setup({ a: "key-a" }, { external: new Map([[EXTERNAL, backend]]) });
+    expect(await s.keys.invoke("secrets_get", { service: SERVICE, account: "a" })).toBe(storedMarker("a"));
+    expect(await s.keys.invoke("secrets_get", { service: "terax-ssh-transfer", account: EXTERNAL })).toBeNull();
+    expect(state.reads).toBe(0);
   });
 });

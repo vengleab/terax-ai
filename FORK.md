@@ -20,8 +20,8 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 | `src-tauri/capabilities/ssh-transfer.json` | Grants the plugin's permissions to the main window |
 | `src/modules/ssh-transfer/` | Frontend module, lazy-loaded |
 | `src/modules/ai/providers/github-copilot/` | GitHub Copilot AI provider (see `docs/fork/github-copilot.md`) |
-| `src/modules/ai/providers/google-vertex/`, `providers/requestBody.ts` | Google Vertex AI provider with service account auth (see `docs/fork/google-vertex.md`) |
-| `src/modules/ai/lib/lazyKeys.ts` (and its tests) | Reads API keys from the OS secret store only when used, not at launch (see `docs/fork/lazy-keys.md`) |
+| `src/modules/ai/providers/google-vertex/`, `providers/requestBody.ts` | Google Vertex AI provider with service account auth; the user picks the key file and Terax reads it from disk, no keychain (see `docs/fork/google-vertex.md`) |
+| `src/modules/ai/lib/lazyKeys.ts` (and its tests) | Reads API keys from the OS secret store only when used, not at launch; also serves "external" key slots such as Vertex's key file path (see `docs/fork/lazy-keys.md`) |
 | `docs/fork/` | Fork docs, start at `docs/fork/ssh-transfer.md` |
 | `scripts/fork/` | Sync and seam tooling |
 | `.github/workflows/fork-ci.yml` | Fork CI |
@@ -84,5 +84,5 @@ Upstream's Dependabot config groups all cargo updates. The fork crates pin `russ
 
 - `docs/fork/github-copilot.md`: the GitHub Copilot AI provider
 - `docs/fork/lazy-keys.md`: lazy API key reads (no secret-store reads at launch)
-- `docs/fork/google-vertex.md`: the Google Vertex AI provider (service account)
+- `docs/fork/google-vertex.md`: the Google Vertex AI provider (service account key file, no keychain)
 - `docs/fork/ssh-transfer.md`: the SSH File Transfer feature

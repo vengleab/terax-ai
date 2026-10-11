@@ -2,6 +2,8 @@ import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { LazyStore } from "@tauri-apps/plugin-store";
 import { KEYRING_SERVICE } from "../config";
+import { GOOGLE_VERTEX_ACCOUNT } from "../providers/google-vertex/data";
+import { vertexKeyFileBackend } from "../providers/google-vertex/fileBackend";
 
 /**
  * Opening the app or Settings used to read every saved API key from the OS secret store, which on
@@ -42,11 +44,19 @@ type Index = { probed: Set<string>; present: Set<string> };
 
 class IndexUnavailable extends Error {}
 
+/** An account whose value lives outside the OS secret store (for example a key file path in plain settings). */
+export type ExternalSecret = {
+  get(): Promise<string | null>;
+  set(value: string): Promise<void>;
+  delete(): Promise<void>;
+};
+
 export type LazyKeysDeps = {
   invoke: Invoke;
   store: () => KeyValueStore;
   service: string;
   onKeysChanged?: (callback: () => void) => void;
+  external?: ReadonlyMap<string, ExternalSecret>;
 };
 
 function message(error: unknown): string {
@@ -159,8 +169,8 @@ export function createLazyKeys(deps: LazyKeysDeps) {
     });
   };
 
-  /** Drop-in for Tauri's `invoke` that answers saved-key lookups from the index. */
-  const invoke: Invoke = async <T>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
+  /** Saved-key lookups answered from the index, with the secret store as the fallback. */
+  const keychainInvoke: Invoke = async <T>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
     if (args?.service !== deps.service) return deps.invoke<T>(cmd, args);
     const account = args.account as string;
     try {
@@ -182,6 +192,53 @@ export function createLazyKeys(deps: LazyKeysDeps) {
       await noteRemoved(account).catch(() => undefined);
     }
     return result;
+  };
+
+  const external = deps.external ?? new Map<string, ExternalSecret>();
+
+  /**
+   * Drop-in for Tauri's `invoke`. Accounts registered as external are answered by their own backend
+   * and never reach the secret store or the index; everything else goes through the keychain path.
+   */
+  const invoke: Invoke = async <T>(cmd: string, args?: Record<string, unknown>): Promise<T> => {
+    if (external.size === 0 || args?.service !== deps.service) return keychainInvoke<T>(cmd, args);
+    const backend = typeof args.account === "string" ? external.get(args.account) : undefined;
+    switch (cmd) {
+      case "secrets_get":
+        if (backend) return (await backend.get()) as T;
+        break;
+      case "secrets_set":
+        if (backend) {
+          await backend.set(args.password as string);
+          return undefined as T;
+        }
+        break;
+      case "secrets_delete":
+        if (backend) {
+          await backend.delete();
+          return undefined as T;
+        }
+        break;
+      case "secrets_get_all": {
+        const accounts = args.accounts as string[];
+        if (!accounts.some((a) => external.has(a))) break;
+        const rest = accounts.filter((a) => !external.has(a));
+        const restValues =
+          rest.length > 0
+            ? await keychainInvoke<(string | null)[]>(cmd, { ...args, accounts: rest })
+            : [];
+        const fromKeychain = new Map(rest.map((a, i) => [a, restValues[i] ?? null]));
+        const values = await Promise.all(
+          accounts.map((a) => {
+            const own = external.get(a);
+            return own ? own.get().catch(() => null) : (fromKeychain.get(a) ?? null);
+          }),
+        );
+        return values as T;
+      }
+      default:
+    }
+    return keychainInvoke<T>(cmd, args);
   };
 
   /** Turns a lookup result into the real key: plain strings pass through, markers are read on demand. */
@@ -226,6 +283,7 @@ const instance = createLazyKeys({
   onKeysChanged: (callback) => {
     void listen(KEYS_CHANGED_EVENT, callback).catch(() => undefined);
   },
+  external: new Map([[GOOGLE_VERTEX_ACCOUNT, vertexKeyFileBackend]]),
 });
 
 export const invoke = instance.invoke;

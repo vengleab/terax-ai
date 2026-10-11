@@ -2,8 +2,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
-import { resolveSecret } from "@/modules/ai/lib/lazyKeys";
 import type { ProviderInfo } from "@/modules/ai/config";
 import { ProviderIcon } from "@/settings/components/ProviderIcon";
 import {
@@ -12,23 +10,27 @@ import {
   CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { homeDir } from "@tauri-apps/api/path";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { testConnection } from "./connection";
-import { loadAccountText, removeAccountParts, storeAccountText } from "./credentialStore";
 import {
   isValidLocation,
   isValidProject,
   LOCATION_SUGGESTIONS,
   MODEL_SUGGESTIONS,
 } from "./endpoint";
-import { accountSummary, parseServiceAccount } from "./serviceAccount";
+import { expandHome, normalizePath } from "./keyBrowser";
+import { KeyFileBrowser } from "./KeyFileBrowser";
+import { readServiceAccountFile } from "./keyFile";
+import { accountSummary } from "./serviceAccount";
 import { DEFAULT_SETTINGS, type VertexAccountMeta, type VertexSettings, vertexState } from "./settings";
 
 type Props = {
   provider: ProviderInfo;
+  /** The path of the chosen key file. Nothing secret reaches this card. */
   token: string | null;
-  onSave: (pointer: string) => Promise<void>;
+  onSave: (keyFilePath: string) => Promise<void>;
   onClear: () => Promise<void>;
   onRemove: () => void;
 };
@@ -63,11 +65,12 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
   const connected = !!token;
   const [account, setAccount] = useState<VertexAccountMeta | null>(null);
   const [settings, setSettings] = useState<VertexSettings>(DEFAULT_SETTINGS);
-  const [pasted, setPasted] = useState("");
+  const [typedPath, setTypedPath] = useState("");
+  const [browsing, setBrowsing] = useState(false);
   const [busy, setBusy] = useState<"saving" | "testing" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fileProblem, setFileProblem] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -81,18 +84,35 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
     };
   }, []);
 
-  const saveKey = async (text: string) => {
+  // Tells the user straight away if the chosen file was moved or deleted, rather than at the first chat.
+  useEffect(() => {
+    if (!token) {
+      setFileProblem(null);
+      return;
+    }
+    let live = true;
+    void readServiceAccountFile(token).then(
+      () => live && setFileProblem(null),
+      (e) => live && setFileProblem(describe(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [token]);
+
+  const connectKeyFile = async (rawPath: string) => {
     setError(null);
     setBusy("saving");
     try {
-      const sa = parseServiceAccount(text);
-      const pointer = await storeAccountText(text.trim(), account?.parts ?? 0);
-      const parts = Number(pointer.split(":")[2]);
-      const meta = { ...accountSummary(sa), parts };
+      let path = normalizePath(rawPath.trim());
+      if (!path) throw new Error("Choose the service account .json file first.");
+      if (path === "~" || path.startsWith("~/")) path = expandHome(path, normalizePath(await homeDir()));
+      const sa = await readServiceAccountFile(path);
+      const meta = { keyFilePath: path, ...accountSummary(sa) };
       await vertexState.setAccount(meta);
-      await onSave(pointer);
+      await onSave(path);
       setAccount(meta);
-      setPasted("");
+      setTypedPath("");
       setTestResult(null);
     } catch (e) {
       setError(describe(e));
@@ -101,22 +121,10 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
     }
   };
 
-  const chooseFile = async (file: File | undefined) => {
-    if (!file) return;
-    try {
-      await saveKey(await file.text());
-    } catch (e) {
-      setError(describe(e));
-    }
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
   const remove = async () => {
     setError(null);
     try {
       await onClear();
-      await removeAccountParts(account?.parts ?? 0);
-      await vertexState.setAccount(null);
       setAccount(null);
       setTestResult(null);
     } catch (e) {
@@ -150,9 +158,7 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
     setTestResult(null);
     setBusy("testing");
     try {
-      const pointer = await resolveSecret(token);
-      if (!pointer) throw new Error("The saved service account could not be read from your keychain.");
-      const sa = parseServiceAccount(await loadAccountText(pointer));
+      const sa = await readServiceAccountFile(token);
       const result = await testConnection(sa, settings);
       setTestResult(result.ok ? { ok: true, text: result.detail } : { ok: false, text: result.message });
     } catch (e) {
@@ -197,23 +203,28 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
 
       <span className="text-[10.5px] leading-relaxed text-muted-foreground">
         Use Gemini on Google Cloud with a service account. The account needs the Vertex AI User role and the Vertex
-        AI API enabled in its project. The key file is stored in your OS keychain.
+        AI API enabled in its project. Choose the .json key file you downloaded. It is read from where it is, and
+        nothing is saved to your keychain.
       </span>
 
       {connected ? (
         <div className="flex flex-col gap-2.5">
-          {account ? (
-            <div className="flex flex-col gap-0.5 rounded-md bg-muted/40 px-2.5 py-1.5 font-mono text-[10.5px] text-muted-foreground">
+          <div className="flex flex-col gap-0.5 rounded-md bg-muted/40 px-2.5 py-1.5 font-mono text-[10.5px] text-muted-foreground">
+            {account?.clientEmail ? (
               <span className="truncate" title={account.clientEmail}>
                 {account.clientEmail}
               </span>
-              <span>project {account.projectId}</span>
-            </div>
-          ) : (
-            <div className="rounded-md bg-muted/40 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">
-              Saved in your keychain
-            </div>
-          )}
+            ) : null}
+            {account?.projectId ? <span>project {account.projectId}</span> : null}
+            <span className="truncate" title={token ?? undefined}>
+              {token}
+            </span>
+          </div>
+          {fileProblem ? (
+            <p role="alert" className="text-[10.5px] leading-relaxed text-destructive">
+              {fileProblem}
+            </p>
+          ) : null}
           <div className="grid grid-cols-2 gap-2">
             <Field id="vertex-location" label="Location" hint="global, or a region such as us-central1">
               <Input
@@ -277,11 +288,21 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
             <Button
               size="sm"
               variant="outline"
-              onClick={() => void remove()}
+              onClick={() => setBrowsing(true)}
               disabled={busy !== null}
               className="h-8 text-[11.5px]"
             >
-              Remove key
+              Change file…
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void remove()}
+              disabled={busy !== null}
+              title="Forget this key file. The file itself is not deleted."
+              className="h-8 text-[11.5px]"
+            >
+              Disconnect
             </Button>
           </div>
           {testResult ? (
@@ -291,46 +312,51 @@ export function VertexCard({ provider, token, onSave, onClear, onRemove }: Props
           ) : null}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <Textarea
-            value={pasted}
-            onChange={(e) => setPasted(e.target.value)}
-            placeholder='Paste the service account JSON key, or choose the downloaded file'
-            spellCheck={false}
-            autoComplete="off"
-            className="min-h-20 font-mono text-[10.5px]"
-          />
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void connectKeyFile(typedPath);
+          }}
+        >
+          <Field id="vertex-key-file" label="Key file">
+            <Input
+              id="vertex-key-file"
+              value={typedPath}
+              onChange={(e) => setTypedPath(e.target.value)}
+              placeholder="~/Downloads/my-project-1a2b3c.json"
+              spellCheck={false}
+              autoComplete="off"
+              className="h-8 font-mono text-[11.5px]"
+            />
+          </Field>
           <div className="flex items-center gap-2">
             <Button
+              type="button"
               size="sm"
-              onClick={() => void saveKey(pasted)}
-              disabled={busy !== null || !pasted.trim()}
-              className="h-8 gap-1.5 text-[11.5px]"
-            >
-              {busy === "saving" ? <Spinner className="size-3" /> : null}
-              Save key
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => setBrowsing(true)}
               disabled={busy !== null}
               className="h-8 text-[11.5px]"
             >
-              Choose file…
+              Find file…
             </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => void chooseFile(e.target.files?.[0])}
-            />
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              disabled={busy !== null || !typedPath.trim()}
+              className="h-8 gap-1.5 text-[11.5px]"
+            >
+              {busy === "saving" ? <Spinner className="size-3" /> : null}
+              Use this path
+            </Button>
           </div>
-        </div>
+        </form>
       )}
 
       {error ? <p className="text-[10.5px] leading-relaxed text-destructive">{error}</p> : null}
+
+      <KeyFileBrowser open={browsing} onOpenChange={setBrowsing} onPick={(path) => void connectKeyFile(path)} />
     </div>
   );
 }

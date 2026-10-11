@@ -14,16 +14,20 @@ export type VertexSettings = {
   projectOverride: string;
 };
 
-/** Non-secret facts about the saved key, kept so Settings can show them without reading the keychain. */
+/**
+ * Which key file is in use. The file itself stays where the user keeps it and is read from there;
+ * the email and project are copied here only so Settings can show them without opening the file.
+ */
 export type VertexAccountMeta = {
+  keyFilePath: string;
   clientEmail: string;
   projectId: string;
-  parts: number;
 };
 
 const STORE_PATH = "terax-google-vertex.json";
 const KEY_SETTINGS = "settings";
 const KEY_ACCOUNT = "account";
+const KEY_LAST_DIR = "lastDirectory";
 
 export const DEFAULT_SETTINGS: VertexSettings = {
   location: DEFAULT_LOCATION,
@@ -50,6 +54,21 @@ export function createVertexState(store: () => KeyValueStore = lazyDefault) {
       projectOverride: saved?.projectOverride?.trim() ?? "",
     };
   };
+  const getAccount = async (): Promise<VertexAccountMeta | null> => {
+    const v = await store().get<Partial<VertexAccountMeta>>(KEY_ACCOUNT);
+    if (!v || typeof v.keyFilePath !== "string" || !v.keyFilePath) return null;
+    return {
+      keyFilePath: v.keyFilePath,
+      clientEmail: typeof v.clientEmail === "string" ? v.clientEmail : "",
+      projectId: typeof v.projectId === "string" ? v.projectId : "",
+    };
+  };
+  const setAccount = async (meta: VertexAccountMeta | null): Promise<void> => {
+    const s = store();
+    if (meta) await s.set(KEY_ACCOUNT, meta);
+    else await s.delete(KEY_ACCOUNT);
+    await s.save();
+  };
   return {
     getSettings,
     async setSettings(patch: Partial<VertexSettings>): Promise<VertexSettings> {
@@ -59,17 +78,20 @@ export function createVertexState(store: () => KeyValueStore = lazyDefault) {
       await s.save();
       return next;
     },
-    async getAccount(): Promise<VertexAccountMeta | null> {
-      const v = await store().get<VertexAccountMeta>(KEY_ACCOUNT);
-      return v && typeof v.clientEmail === "string" && typeof v.parts === "number" ? v : null;
+    getAccount,
+    setAccount,
+    async getLastDirectory(): Promise<string | null> {
+      const v = await store().get<string>(KEY_LAST_DIR);
+      return typeof v === "string" && v ? v : null;
     },
-    async setAccount(meta: VertexAccountMeta | null): Promise<void> {
+    async setLastDirectory(path: string): Promise<void> {
       const s = store();
-      if (meta) await s.set(KEY_ACCOUNT, meta);
-      else await s.delete(KEY_ACCOUNT);
+      await s.set(KEY_LAST_DIR, path);
       await s.save();
     },
   };
 }
+
+export type VertexState = ReturnType<typeof createVertexState>;
 
 export const vertexState = createVertexState();

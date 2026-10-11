@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   accountSummary,
   base64Url,
+  createTokenCache,
   createTokenManager,
   DEFAULT_TOKEN_URI,
   fetchAccessToken,
@@ -169,5 +170,34 @@ describe("createTokenManager", () => {
     expect(await manager.get()).toBe("t2");
     manager.invalidate();
     expect(await manager.get()).toBe("t3");
+  });
+});
+
+describe("createTokenCache", () => {
+  it("keeps a separate token for each key and renews one only when it expires or is invalidated", async () => {
+    const first = await makeTestAccount();
+    const one = parseServiceAccount(first.json);
+    const oneReread = parseServiceAccount(first.json);
+    const other = parseServiceAccount((await makeTestAccount()).json);
+    let n = 0;
+    const fetchImpl = vi.fn().mockImplementation(async () => tokenResponse({ access_token: `t${++n}`, expires_in: 3600 }));
+    const cache = createTokenCache({ fetchImpl: fetchImpl as unknown as typeof fetch, now: () => NOW_MS });
+
+    expect(await cache.get(one)).toBe("t1");
+    expect(await cache.get(oneReread)).toBe("t1");
+    expect(await cache.get(other)).toBe("t2");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    cache.invalidate(oneReread);
+    expect(await cache.get(one)).toBe("t3");
+    expect(await cache.get(other)).toBe("t2");
+  });
+
+  it("tells keys apart even when the file keeps the same private_key_id", async () => {
+    const a = await makeTestAccount();
+    const b = await makeTestAccount();
+    expect(a.parsed.private_key_id).toBe(b.parsed.private_key_id);
+    expect(parseServiceAccount(a.json).keyId).not.toBe(parseServiceAccount(b.json).keyId);
+    expect(parseServiceAccount(a.json).keyId).toBe(parseServiceAccount(a.json).keyId);
   });
 });
