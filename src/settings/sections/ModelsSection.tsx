@@ -92,6 +92,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { ProviderKeyCard } from "../components/ProviderKeyCard";
 import { SectionHeader } from "../components/SectionHeader";
+import { CopilotCard } from "@/modules/ai/providers/github-copilot/CopilotCard"; // fork:github-copilot
 
 type KeysMap = Record<ProviderId, string | null>;
 
@@ -412,6 +413,15 @@ export function ModelsSection() {
                   meta={LOCAL_META[p.id]!}
                   onSaveKey={(v) => onSaveKey(p.id, v)}
                   onClearKey={() => onClearKey(p.id)}
+                  onRemove={() => removeProvider(p.id)}
+                />
+              ) : p.id === "github-copilot" ? ( // fork:github-copilot
+                <CopilotCard
+                  key={p.id}
+                  provider={p}
+                  token={keys[p.id]}
+                  onSave={(v) => onSaveKey(p.id, v)}
+                  onClear={() => onClearKey(p.id)}
                   onRemove={() => removeProvider(p.id)}
                 />
               ) : (

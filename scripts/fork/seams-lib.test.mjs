@@ -111,30 +111,30 @@ describe("evaluateBudgets", () => {
 
 describe("evaluateSeams with several features", () => {
   const multi = {
-    markers: ["fork:ssh-transfer", "fork:github-models"],
+    markers: ["fork:ssh-transfer", "fork:other-feature"],
     ownedPrefixes: ["FORK.md"],
     seams: [
       { file: "a.ts", min: 1, max: 1 },
-      { file: "b.ts", min: 2, max: 2, marker: "fork:github-models" },
+      { file: "b.ts", min: 2, max: 2, marker: "fork:other-feature" },
     ],
   };
 
   it("defaults a seam to the first marker and honours a per-seam marker", () => {
     const files = new Map([
       ["a.ts", "// fork:ssh-transfer"],
-      ["b.ts", "// fork:github-models\n// fork:github-models"],
+      ["b.ts", "// fork:other-feature\n// fork:other-feature"],
     ]);
     expect(evaluateSeams(multi, files)).toEqual([]);
   });
 
   it("counts each marker separately", () => {
     const files = new Map([
-      ["a.ts", "// fork:github-models"],
-      ["b.ts", "// fork:github-models\n// fork:github-models"],
+      ["a.ts", "// fork:other-feature"],
+      ["b.ts", "// fork:other-feature\n// fork:other-feature"],
     ]);
     const errors = evaluateSeams(multi, files);
     expect(errors.some((e) => e.includes('a.ts: expected at least 1 "fork:ssh-transfer"'))).toBe(true);
-    expect(errors.some((e) => e.includes('a.ts: unregistered "fork:github-models"'))).toBe(true);
+    expect(errors.some((e) => e.includes('a.ts: unregistered "fork:other-feature"'))).toBe(true);
   });
 
   it("flags a seam that names a marker that is not declared", () => {

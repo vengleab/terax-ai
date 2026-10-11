@@ -161,12 +161,12 @@ export async function buildLanguageModel(
       })(resolvedModelId);
       break;
     }
-    case "github-models": {
-      // fork:github-models
-      const { buildGithubModelsModel } = await import(
-        "../providers/github-models/build"
+    case "github-copilot": {
+      // fork:github-copilot
+      const { buildGithubCopilotModel } = await import(
+        "../providers/github-copilot/build"
       );
-      built = await buildGithubModelsModel(key, resolvedModelId);
+      built = await buildGithubCopilotModel(key);
       break;
     }
     case "openai-compatible": {

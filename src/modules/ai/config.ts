@@ -1,9 +1,9 @@
-// fork:github-models
+// fork:github-copilot
 import {
-  GITHUB_MODELS,
-  GITHUB_MODELS_CONTEXT_LIMITS,
-  GITHUB_MODELS_PROVIDER,
-} from "./providers/github-models/data";
+  GITHUB_COPILOT_CONTEXT_LIMITS,
+  GITHUB_COPILOT_MODELS,
+  GITHUB_COPILOT_PROVIDER,
+} from "./providers/github-copilot/data";
 
 export const KEYRING_SERVICE = "terax-ai";
 
@@ -17,7 +17,7 @@ export type ProviderId =
   | "deepseek"
   | "mistral"
   | "openrouter"
-  | "github-models" // fork:github-models
+  | "github-copilot" // fork:github-copilot
   | "openai-compatible"
   | "lmstudio"
   | "mlx"
@@ -97,7 +97,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyPrefix: "sk-or-",
     consoleUrl: "https://openrouter.ai/keys",
   },
-  GITHUB_MODELS_PROVIDER, // fork:github-models
+  GITHUB_COPILOT_PROVIDER, // fork:github-copilot
   {
     id: "openai-compatible",
     label: "OpenAI Compatible",
@@ -590,7 +590,7 @@ export const MODELS = [
     tags: ["reasoning", "tools"],
   },
 
-  ...GITHUB_MODELS, // fork:github-models
+  ...GITHUB_COPILOT_MODELS, // fork:github-copilot
 
   // ── OpenRouter (gateway; model id is user-supplied at runtime) ────────────
   {
@@ -730,7 +730,7 @@ export const DEFAULT_MODEL_ID: ModelId = "gpt-5.4-mini";
  *  context-usage indicator in the AI mini-window header. Conservative
  *  estimates — actual provider limits may shift. */
 export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
-  ...GITHUB_MODELS_CONTEXT_LIMITS, // fork:github-models
+  ...GITHUB_COPILOT_CONTEXT_LIMITS, // fork:github-copilot
   "gpt-5.6": 1_050_000,
   "gpt-5.6-terra": 1_050_000,
   "gpt-5.6-luna": 1_050_000,

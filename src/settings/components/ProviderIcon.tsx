@@ -14,7 +14,7 @@ import {
   PlugIcon,
   ServerStack01Icon,
 } from "@hugeicons/core-free-icons";
-import { GithubIcon } from "@hugeicons/core-free-icons"; // fork:github-models
+import { CopilotIcon } from "@hugeicons/core-free-icons"; // fork:github-copilot
 import { HugeiconsIcon } from "@hugeicons/react";
 
 const ICON_BY_PROVIDER = {
@@ -27,7 +27,7 @@ const ICON_BY_PROVIDER = {
   deepseek: DeepseekIcon,
   mistral: MistralIcon,
   openrouter: GlobeIcon,
-  "github-models": GithubIcon, // fork:github-models
+  "github-copilot": CopilotIcon, // fork:github-copilot
   "openai-compatible": PlugIcon,
   lmstudio: ComputerIcon,
   mlx: AppleIcon,
