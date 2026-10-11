@@ -171,6 +171,14 @@ export async function buildLanguageModel(
       built = await buildGithubCopilotModel(key);
       break;
     }
+    case "google-vertex": {
+      // fork:google-vertex
+      const { buildGoogleVertexModel } = await import(
+        "../providers/google-vertex/build"
+      );
+      built = await buildGoogleVertexModel(key);
+      break;
+    }
     case "openai-compatible": {
       if (!compatURL) {
         throw new Error(

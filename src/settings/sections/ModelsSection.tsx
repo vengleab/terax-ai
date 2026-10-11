@@ -93,6 +93,7 @@ import { ProviderIcon } from "../components/ProviderIcon";
 import { ProviderKeyCard } from "../components/ProviderKeyCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { CopilotCard } from "@/modules/ai/providers/github-copilot/CopilotCard"; // fork:github-copilot
+import { VertexCard } from "@/modules/ai/providers/google-vertex/VertexCard"; // fork:google-vertex
 import { isStoredSecret, STORED_LABEL } from "@/modules/ai/lib/lazyKeys"; // fork:lazy-keys
 
 type KeysMap = Record<ProviderId, string | null>;
@@ -414,6 +415,15 @@ export function ModelsSection() {
                   meta={LOCAL_META[p.id]!}
                   onSaveKey={(v) => onSaveKey(p.id, v)}
                   onClearKey={() => onClearKey(p.id)}
+                  onRemove={() => removeProvider(p.id)}
+                />
+              ) : p.id === "google-vertex" ? ( // fork:google-vertex
+                <VertexCard
+                  key={p.id}
+                  provider={p}
+                  token={keys[p.id]}
+                  onSave={(v) => onSaveKey(p.id, v)}
+                  onClear={() => onClearKey(p.id)}
                   onRemove={() => removeProvider(p.id)}
                 />
               ) : p.id === "github-copilot" ? ( // fork:github-copilot

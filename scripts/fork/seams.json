@@ -2,7 +2,8 @@
   "markers": [
     "fork:ssh-transfer",
     "fork:github-copilot",
-    "fork:lazy-keys"
+    "fork:lazy-keys",
+    "fork:google-vertex"
   ],
   "ownedPrefixes": [
     "FORK.md",
@@ -13,7 +14,9 @@
     "src-tauri/crates/terax-ssh/",
     "src-tauri/crates/tauri-plugin-terax-ssh/",
     "src-tauri/capabilities/ssh-transfer.json",
-    "src/modules/ai/providers/github-copilot/"
+    "src/modules/ai/providers/github-copilot/",
+    "src/modules/ai/providers/google-vertex/",
+    "src/modules/ai/providers/requestBody.ts"
   ],
   "seams": [
     {
@@ -131,6 +134,42 @@
       "min": 2,
       "max": 2,
       "marker": "fork:lazy-keys"
+    },
+    {
+      "file": "src/modules/ai/config.ts",
+      "min": 5,
+      "max": 5,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/modules/ai/lib/agent.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/modules/ai/lib/keyring.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/settings/components/ProviderIcon.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/modules/ai/components/AiStatusBarControls.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/settings/sections/ModelsSection.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:google-vertex"
     }
   ],
   "budgets": [

@@ -4,6 +4,12 @@ import {
   GITHUB_COPILOT_MODELS,
   GITHUB_COPILOT_PROVIDER,
 } from "./providers/github-copilot/data";
+// fork:google-vertex
+import {
+  GOOGLE_VERTEX_CONTEXT_LIMITS,
+  GOOGLE_VERTEX_MODELS,
+  GOOGLE_VERTEX_PROVIDER,
+} from "./providers/google-vertex/data";
 
 export const KEYRING_SERVICE = "terax-ai";
 
@@ -18,6 +24,7 @@ export type ProviderId =
   | "mistral"
   | "openrouter"
   | "github-copilot" // fork:github-copilot
+  | "google-vertex" // fork:google-vertex
   | "openai-compatible"
   | "lmstudio"
   | "mlx"
@@ -98,6 +105,7 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     consoleUrl: "https://openrouter.ai/keys",
   },
   GITHUB_COPILOT_PROVIDER, // fork:github-copilot
+  GOOGLE_VERTEX_PROVIDER, // fork:google-vertex
   {
     id: "openai-compatible",
     label: "OpenAI Compatible",
@@ -591,6 +599,7 @@ export const MODELS = [
   },
 
   ...GITHUB_COPILOT_MODELS, // fork:github-copilot
+  ...GOOGLE_VERTEX_MODELS, // fork:google-vertex
 
   // ── OpenRouter (gateway; model id is user-supplied at runtime) ────────────
   {
@@ -731,6 +740,7 @@ export const DEFAULT_MODEL_ID: ModelId = "gpt-5.4-mini";
  *  estimates — actual provider limits may shift. */
 export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   ...GITHUB_COPILOT_CONTEXT_LIMITS, // fork:github-copilot
+  ...GOOGLE_VERTEX_CONTEXT_LIMITS, // fork:google-vertex
   "gpt-5.6": 1_050_000,
   "gpt-5.6-terra": 1_050_000,
   "gpt-5.6-luna": 1_050_000,

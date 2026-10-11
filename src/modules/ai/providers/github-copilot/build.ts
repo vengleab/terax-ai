@@ -3,22 +3,9 @@ import { proxyFetch } from "../../lib/proxyFetch";
 import { authHeaders, sessionFor, type SessionManager } from "./copilotApi";
 import { GITHUB_COPILOT_ID, GITHUB_COPILOT_MODEL_ID } from "./data";
 import { copilotState } from "./selection";
+import { rewriteModel } from "../requestBody";
 
-export function rewriteModel(
-  body: BodyInit | null | undefined,
-  modelId: string,
-): BodyInit | null | undefined {
-  if (typeof body !== "string") return body;
-  try {
-    const parsed: unknown = JSON.parse(body);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return JSON.stringify({ ...(parsed as Record<string, unknown>), model: modelId });
-    }
-  } catch {
-    // not JSON, send as is
-  }
-  return body;
-}
+export { rewriteModel };
 
 export type CopilotFetchDeps = {
   fetchImpl?: typeof fetch;
