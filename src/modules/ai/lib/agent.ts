@@ -25,6 +25,7 @@ import {
 import { buildTools, type ToolContext } from "../tools/tools";
 import { compactModelMessagesDetailed } from "./compact";
 import type { ProviderKeys, CustomEndpointKeys } from "./keyring";
+import { resolveSecret } from "./lazyKeys"; // fork:lazy-keys
 import { prepareAgentPrompt } from "./prompt";
 import { createProxyFetch } from "./proxyFetch";
 
@@ -85,12 +86,13 @@ export async function buildLanguageModel(
       `No API key configured for ${provider}. Open Settings → AI to add one.`,
     );
   }
-  const key = keys[provider] ?? "";
+  const key = (await resolveSecret(keys[provider])) ?? ""; // fork:lazy-keys
+  if (providerNeedsKey(provider) && !key) throw new Error(`No API key configured for ${provider}. Open Settings → AI to add one.`); // fork:lazy-keys
   const lmstudioURL = options.lmstudioBaseURL ?? LMSTUDIO_DEFAULT_BASE_URL;
   const mlxURL = options.mlxBaseURL ?? MLX_DEFAULT_BASE_URL;
   const ollamaURL = options.ollamaBaseURL ?? OLLAMA_DEFAULT_BASE_URL;
   const compatURL = options.openaiCompatibleBaseURL ?? "";
-  const epKey = customEndpointKey ?? "";
+  const epKey = (await resolveSecret(customEndpointKey)) ?? ""; // fork:lazy-keys
   const cacheKey = `${provider} ${key} ${epKey} ${resolvedModelId} ${lmstudioURL} ${mlxURL} ${ollamaURL} ${compatURL}`;
   const hit = modelCache.get(cacheKey);
   if (hit) return hit;

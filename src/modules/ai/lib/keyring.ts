@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./lazyKeys"; // fork:lazy-keys
 import {
   getProvider,
   KEYRING_SERVICE,

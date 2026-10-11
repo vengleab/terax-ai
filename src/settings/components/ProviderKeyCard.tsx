@@ -16,6 +16,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 import { ProviderIcon } from "./ProviderIcon";
+import { isStoredSecret, STORED_LABEL } from "@/modules/ai/lib/lazyKeys"; // fork:lazy-keys
 
 type Props = {
   provider: ProviderInfo;
@@ -26,6 +27,7 @@ type Props = {
 };
 
 function maskKey(key: string): string {
+  if (isStoredSecret(key)) return STORED_LABEL; // fork:lazy-keys
   if (key.length <= 8) return "•".repeat(key.length);
   return `${key.slice(0, 4)}${"•".repeat(8)}${key.slice(-4)}`;
 }

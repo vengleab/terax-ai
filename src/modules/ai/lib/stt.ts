@@ -1,4 +1,5 @@
 import type { ProviderKeys } from "./keyring";
+import { resolveSecret } from "./lazyKeys"; // fork:lazy-keys
 
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 const STT_TIMEOUT_GROQ_MS = 30_000;
@@ -153,12 +154,12 @@ export async function transcribeAudio(
 ): Promise<string> {
   switch (provider) {
     case "openai": {
-      const key = apiKeys.openai;
+      const key = await resolveSecret(apiKeys.openai); // fork:lazy-keys
       if (!key) throw new Error("OpenAI API key is not configured");
       return transcribeOpenAI(blob, key);
     }
     case "groq": {
-      const key = apiKeys.groq;
+      const key = await resolveSecret(apiKeys.groq); // fork:lazy-keys
       if (!key) throw new Error("Groq API key is not configured");
       const model = options.groqSttModel || "whisper-large-v3-turbo";
       return transcribeViaRest(GROQ_BASE_URL, blob, key, model);
