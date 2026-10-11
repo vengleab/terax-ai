@@ -1,16 +1,39 @@
+import { IS_WINDOWS } from "@/lib/platform";
+import { quoteShellArg } from "@/lib/shellQuote";
 import { cn } from "@/lib/utils";
 import type { PaletteItem } from "@/modules/command-palette/types";
 import type { Tab } from "@/modules/tabs";
-import { whenSessionReady, writeToSession } from "@/modules/terminal";
+import {
+  leafHasForegroundProcess,
+  whenSessionReady,
+  writeToSession,
+} from "@/modules/terminal";
 import { FolderTransferIcon } from "@hugeicons/core-free-icons";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
+import { SshExplorer } from "../components/SshExplorerLazy";
 import { SshOverlays } from "../components/SshOverlaysLazy";
 import { SshTransferStack } from "../components/SshTransferStackLazy";
 import { SSH_SIDEBAR_VIEW, SSH_TAB_KIND, SSH_TAB_TITLE } from "../constants";
 import type { SshTransferTab } from "../types";
 import type { SshHostActions } from "./hostActions";
 import { requestServerForTab } from "./requested";
+import {
+  parseRemoteCwdTitle,
+  readTitleEvent,
+  TERMINAL_TITLE_EVENT,
+} from "./remoteCwd";
+import { useSshTerminals } from "./sshTerminals";
+
+const ENDED_GRACE_MS = 15_000;
+const ENDED_POLL_MS = 3_000;
 
 type Params = {
   tabs: Tab[];
@@ -33,6 +56,8 @@ export type SshTransferApi = {
   openTerminal: (profileId: string) => void;
   actions: SshHostActions;
   surface: ReactNode;
+  /** The server's file tree, when the active terminal is an SSH session opened from the SSH panel. */
+  explorer: ReactNode;
   overlays: ReactNode;
   paletteItems: PaletteItem[];
 };
@@ -75,16 +100,21 @@ export function useSshTransfer(params: Params): SshTransferApi {
   const openTerminal = useCallback((profileId: string) => {
     void (async () => {
       try {
-        const [{ sshApi }, { buildSshCommand }] = await Promise.all([import("./api"), import("./sshCommand")]);
+        const [{ sshApi }, { buildSshCommand, REMOTE_CWD_COMMAND }] = await Promise.all([
+          import("./api"),
+          import("./sshCommand"),
+        ]);
         const [args, profiles] = await Promise.all([
           sshApi.terminalArgs(profileId),
           sshApi.profilesList(),
         ]);
         const name = profiles.find((p) => p.id === profileId)?.name ?? "ssh";
         const { newAgentTab, getCwd } = latest.current;
-        const { leafId } = newAgentTab(getCwd(), name);
+        const { tabId, leafId } = newAgentTab(getCwd(), name);
+        useSshTerminals.getState().register({ tabId, leafId, profileId });
         await whenSessionReady(leafId);
-        writeToSession(leafId, `${buildSshCommand(args)}\r`);
+        const remote = IS_WINDOWS ? undefined : REMOTE_CWD_COMMAND;
+        writeToSession(leafId, `${buildSshCommand(args, undefined, remote)}\r`);
       } catch (error) {
         failure("Could not open an SSH terminal", error);
       }
@@ -114,6 +144,67 @@ export function useSshTransfer(params: Params): SshTransferApi {
       }
     })();
   }, []);
+
+  const changeRemoteDirectory = useCallback((leafId: number, path: string) => {
+    writeToSession(leafId, `cd ${quoteShellArg(path, false)}\r`);
+  }, []);
+
+  useEffect(() => {
+    const onTitle = (event: Event) => {
+      const detail = readTitleEvent(event);
+      const cwd = detail && parseRemoteCwdTitle(detail.title);
+      if (detail && cwd) useSshTerminals.getState().setRemoteCwd(detail.leafId, cwd);
+    };
+    window.addEventListener(TERMINAL_TITLE_EVENT, onTitle);
+    return () => window.removeEventListener(TERMINAL_TITLE_EVENT, onTitle);
+  }, []);
+
+  useEffect(() => {
+    useSshTerminals.getState().prune(new Set(params.tabs.map((t) => t.id)));
+  }, [params.tabs]);
+
+  const sshTerminals = useSshTerminals((s) => s.terminals);
+  const activeTab = params.tabs.find((t) => t.id === params.activeId);
+  const tagged = activeTab?.kind === "terminal" ? sshTerminals[activeTab.id] : undefined;
+  const taggedTabId = tagged?.tabId;
+  const taggedLeafId = tagged?.leafId;
+  const taggedStartedAt = tagged?.startedAt;
+
+  useEffect(() => {
+    if (taggedTabId === undefined || taggedLeafId === undefined || taggedStartedAt === undefined) return;
+    let live = true;
+    let seenRunning = false;
+    let misses = 0;
+    const timer = setInterval(() => {
+      void leafHasForegroundProcess(taggedLeafId).then((running) => {
+        if (!live) return;
+        if (running) {
+          seenRunning = true;
+          misses = 0;
+          return;
+        }
+        if (!seenRunning && Date.now() - taggedStartedAt < ENDED_GRACE_MS) return;
+        misses += 1;
+        if (misses >= 2) useSshTerminals.getState().forget(taggedTabId);
+      });
+    }, ENDED_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [taggedTabId, taggedLeafId, taggedStartedAt]);
+
+  const explorer =
+    tagged && params.sidebarView === "explorer" ? (
+      <SshExplorer
+        key={tagged.tabId}
+        profileId={tagged.profileId}
+        leafId={tagged.leafId}
+        remoteCwd={tagged.remoteCwd}
+        onOpenFile={openRemoteFile}
+        onChangeDirectory={changeRemoteDirectory}
+      />
+    ) : null;
 
   const actions = useMemo<SshHostActions>(
     () => ({
@@ -185,6 +276,7 @@ export function useSshTransfer(params: Params): SshTransferApi {
     openTerminal,
     actions,
     surface,
+    explorer,
     overlays: activated ? <SshOverlays /> : null,
     paletteItems,
   };

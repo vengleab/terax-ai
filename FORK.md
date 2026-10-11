@@ -38,7 +38,8 @@ The authoritative list is `scripts/fork/seams.json`. Summary:
 | `src/modules/sidebar/types.ts`, `SidebarRail.tsx`, `useSidebarPanel.ts` | New sidebar view id, rail button, persisted-view allow-list |
 | `src/modules/ai/config.ts`, `lib/agent.ts`, `lib/keyring.ts`, `src/settings/components/ProviderIcon.tsx`, `src/modules/ai/components/AiStatusBarControls.tsx`, `src/settings/sections/ModelsSection.tsx` | `fork:github-copilot`: provider id, registry spreads, one `case`, key slot, icon entries, one settings card branch |
 | `.size-limit.json` | Total client JS limit raised from 1505 KB to 1560 KB (guarded by `budgets`, see Size budget) |
-| `src/app/App.tsx` | Seven small hunks: import, `useSshTransfer` call, palette items, sidebar branch, tab surface layer, overlays |
+| `src/app/App.tsx` | Seven small hunks: import, `useSshTransfer` call, palette items, sidebar branch (also swaps in the remote Explorer), tab surface layer, overlays |
+| `src/modules/terminal/ghostty/useGhosttyTerminalSession.ts` | One line: forwards terminal title changes as a `window` event, which the fork uses to follow the server's folder |
 
 ### Size budget
 

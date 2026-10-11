@@ -42,6 +42,22 @@ Server to server transfers are **relayed through this machine** (download and up
 
 "Open SSH terminal" starts a regular Terax terminal tab and types the `ssh` command for the server (`-p`, `-i`, `-J` taken from the profile). This uses the system `ssh` binary and is the only part of the feature that does. Password authentication is entered at the terminal prompt, as with any `ssh` session.
 
+On macOS and Linux the command also carries a remote command (`ssh -t ... 'env PROMPT_COMMAND=... "$SHELL" -l'`) that starts the server's login shell with a bash prompt hook. The hook is what lets the Explorer follow `cd` (below). Side effects of replacing the plain login: the server's motd and last-login banner are not shown. On Windows the plain `ssh` command is typed, so there is no follow.
+
+### Explorer for SSH terminals
+
+When the active terminal is an SSH session opened from the SSH panel and the sidebar is on **Files**, the Explorer shows that server's files instead of the local ones. The header shows the server's name and the folder being shown, with up, refresh, new file, new folder and a dotfiles toggle.
+
+- **Browse:** folders expand in place; the tree is virtualized and keyboard driven (arrows, `Enter`, `F2`, `Delete`).
+- **Open:** double click or `Enter` opens a file in the editor through the same download-and-sync-back flow as "Open in editor".
+- **Change things:** New file, New folder, Rename, Delete (with confirmation), Copy path. "cd here in terminal" types `cd '<folder>'` into the terminal.
+- **Follows `cd`:** on servers whose login shell is bash, each prompt reports the current folder as a terminal title (`terax-cwd:<path>`) and the tree re-roots there. The terminal's own OSC 7 handling is deliberately not used, because Terax ignores OSC 7 while a command (here `ssh`) is running. On zsh or fish servers the tree starts at the server's home (or the profile's default folder) and does not follow; up, refresh and "cd here" still work.
+- **Connects itself:** the first time it is shown it connects with the profile (host key, password and passphrase prompts work as everywhere else), with Retry on failure.
+- **Stops when ssh ends:** once the terminal's `ssh` has exited (checked every few seconds), or the tab is closed, the Explorer goes back to the local tree.
+- **Refresh:** there is no remote file watcher, so listings refresh on window focus, after your own changes, and with the refresh button.
+
+Not available in the remote tree: git status, content search, drag-to-move, and attaching files to the AI agent. The AI agent, the status bar and the window title keep using the local workspace. Terminals where you typed `ssh host` by hand are not detected.
+
 ### Servers, keys and known hosts
 
 - **Servers:** name, host, port, user, authentication (agent, key file, or password; a saved password is optional), optional jump host (one hop), keepalive, color and tags. `~/.ssh/config` can be imported (`Host`, `HostName`, `User`, `Port`, `IdentityFile`, `ProxyJump`, `Include`). `ProxyCommand` is never executed; it produces an import warning instead.
@@ -66,7 +82,7 @@ Server to server transfers are **relayed through this machine** (download and up
 | `src-tauri/capabilities/ssh-transfer.json` | Grants the plugin's permissions to the main window |
 | `src/modules/ssh-transfer/` | Frontend: stores, dual-pane view, dialogs, drag and drop, hook mounted from `App.tsx` |
 
-The frontend is loaded lazily: `SshSidebarLazy`, `SshTransferStackLazy` and `SshOverlaysLazy` are the only entry points the app imports, and `eager-budget.test.ts` keeps them out of the startup graph.
+The frontend is loaded lazily: `SshSidebarLazy`, `SshTransferStackLazy`, `SshExplorerLazy` and `SshOverlaysLazy` are the only components the app imports, and `eager-budget.test.ts` keeps them out of the startup graph. The remote Explorer's logic is in small pure modules (`remoteTree.ts`, `remoteCwd.ts`, `sshTerminals.ts`, `sshCommand.ts`).
 
 Plugin commands are listed in three places that must agree (`build.rs`, `permissions/default.toml`, the `generate_handler!` list in `src/lib.rs`). A unit test in the plugin crate fails if they drift.
 
@@ -76,21 +92,23 @@ Verified by automated checks, run on Linux:
 
 - `terax-ssh`: 160 tests, including an in-process SSH + SFTP server that exercises authentication, host-key trust and change, transfers (all three route kinds, resume, conflicts, cancel), forwards and remote edit.
 - `tauri-plugin-terax-ssh`: command, permission and handler lists stay in step; wire shapes of events and errors.
-- Frontend: type-check, lint, and unit tests for the pure logic (paths, sorting, selection, transfer planning, queue stats, drag-and-drop hit testing, form validation). Full-app `cargo clippy --all-targets --locked -- -D warnings`. `pnpm build && pnpm size` within budget.
+- Frontend: type-check, lint, and unit tests for the pure logic (paths, sorting, selection, transfer planning, queue stats, drag-and-drop hit testing, form validation, the remote tree, the terminal registry and the folder-report parser). Full-app `cargo clippy --all-targets --locked -- -D warnings`. `pnpm build && pnpm size` within budget.
+- Remote command: a test runs the generated `ssh` line through a real `sh` to prove the remote command arrives as one unchanged argument, and runs the prompt hook in a real interactive `bash` to prove it reports the folder on every prompt and after `cd` (skipped where `sh` or `bash` is missing, and on Windows).
+- The Explorer, dual-pane view and dialogs were also driven in headless Chromium with the Tauri backend replaced by a mock (fake servers, files and terminal titles). That exercises the real React code, not a real server or terminal.
 
-**Not verified:** the app was never run with a window, so the UI itself (drag and drop, OS file drop, dialogs, SSH terminal launch, edit-and-sync round trip) has had no end-to-end run, and nothing was tested against a real OpenSSH server or on Windows and macOS. Run this checklist on a developer machine with `pnpm tauri dev` and a local OpenSSH server (a container is fine):
+**Not verified:** the app was never run as a desktop window, so drag and drop, OS file drop, the real SSH terminal launch (including the remote command on real servers and shells), the follow-`cd` path through the real terminal, and the edit-and-sync round trip have had no end-to-end run, and nothing was tested against a real OpenSSH server or on Windows and macOS. Run this checklist on a developer machine with `pnpm tauri dev` and a local OpenSSH server (a container is fine):
 
 1. Connect with a password, a key file and an agent.
 2. Accept a new host key; change the server's key and confirm the connection is refused.
 3. Drag a file and a folder local to server, server to local, and server to server.
 4. Cancel a large transfer midway, then retry it and confirm it resumes.
 5. Open a remote file in the editor, save, and confirm the server copy changed. Edit it on the server first and confirm the conflict prompt.
-6. Open an SSH terminal from a server.
+6. Open an SSH terminal from a server. On a bash server, switch the sidebar to Files and confirm the tree shows the server, then `cd` into another folder and confirm the tree follows. Create, rename and delete something from the tree, open a file, and use "cd here in terminal". Type `exit` and confirm the local tree returns within a few seconds.
 7. Start a local forward and `curl` through it. Start a SOCKS5 forward and use it with `curl --socks5-hostname`.
 
 ## Size
 
-The three lazy chunks add about 48 kB gzipped. The total client JS limit in `.size-limit.json` was raised from 1505 KB to 1560 KB to fit (see "Size budget" in `FORK.md`). The Rust dependency tree also grows because `russh` pulls pre-release crypto crates; measure a release build in CI before publishing.
+The lazy chunks add about 53 kB gzipped (the remote Explorer is about 5 kB of that). The total client JS limit in `.size-limit.json` was raised from 1505 KB to 1560 KB to fit (see "Size budget" in `FORK.md`); about 12 kB of that limit is left. The Rust dependency tree also grows because `russh` pulls pre-release crypto crates; measure a release build in CI before publishing.
 
 ## Possible next steps
 

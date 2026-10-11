@@ -1464,7 +1464,9 @@ export default function App() {
                       className="min-h-0 flex-1 terax-panel-in"
                     >
                       {/* fork:ssh-transfer */}
-                      {sidebarView === "ssh-transfer" ? (
+                      {sidebarView === "explorer" && ssh.explorer ? (
+                        ssh.explorer
+                      ) : sidebarView === "ssh-transfer" ? (
                         <SshSidebar
                           onOpenTransfer={ssh.openTransfer}
                           onOpenTerminal={ssh.openTerminal}
