@@ -25,6 +25,18 @@ TERAX_E2E_WORKSPACE=/tmp/e2e/work TERAX_E2E_SETTINGS=/tmp/e2e/ud/User/settings.j
   PLAYWRIGHT_NODE_MODULES=/path/to/node_modules node vscode-extension/e2e/chat.mjs /tmp/e2e/shots
 ```
 
+`chat-lm.mjs` tests the chat's use of VS Code's own language models (how GitHub Copilot is used), which needs a model
+provider: `fake-lm-extension/` registers a scripted one through `vscode.lm`, as Copilot does. Package it and install it
+next to the Terax extension (it needs VS Code 1.104+ to register a provider):
+
+```sh
+(cd vscode-extension/e2e/fake-lm-extension && npx --yes @vscode/vsce@3.6.0 package --no-dependencies --skip-license --allow-missing-repository)
+code-server --install-extension vscode-extension/e2e/fake-lm-extension/terax-e2e-fake-lm-0.0.1.vsix --force \
+  --user-data-dir /tmp/e2e/ud --extensions-dir /tmp/e2e/ext
+TERAX_E2E_WORKSPACE=/tmp/e2e/work TERAX_E2E_SETTINGS=/tmp/e2e/ud/User/settings.json \
+  PLAYWRIGHT_NODE_MODULES=/path/to/node_modules node vscode-extension/e2e/chat-lm.mjs /tmp/e2e/shots
+```
+
 It needs `playwright` with a Chromium (`CHROMIUM_PATH` if Playwright's own is not installed) and Linux or macOS, because
 the checks use `stty`, `less` and files in `/tmp`.
 

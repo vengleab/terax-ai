@@ -9,8 +9,9 @@ import { registerAiCommands, runPageCommand } from "./ai/commands";
 import { WorkspaceGuard } from "./ai/guard";
 import { ApiKeys } from "./ai/keys";
 import { createModel } from "./ai/model";
-import { aiSettings } from "./ai/settings";
+import { aiSettings, VSCODE_LM } from "./ai/settings";
 import { buildTools } from "./ai/tools";
+import { vscodeLm } from "./ai/vscodeLmApi";
 import { buildHtml, makeNonce } from "./html";
 import { findHelper } from "./helperPath";
 import { HelperClient } from "./helperClient";
@@ -66,8 +67,8 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
         this.showPendingBadge();
       },
       settings: () => aiSettings(getConfig),
-      apiKey: (settings) => this.keys.get(settings.provider),
-      buildModel: createModel,
+      apiKey: async (settings) => (settings.provider === VSCODE_LM ? undefined : this.keys.get(settings.provider)),
+      buildModel: (settings, key) => createModel(settings, key, vscodeLm),
       buildTools,
       toolContext: () => ({
         guard,

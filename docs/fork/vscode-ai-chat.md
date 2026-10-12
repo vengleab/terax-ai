@@ -24,11 +24,21 @@ The Terax panel in VS Code (see `vscode-extension.md`) has a **chat below the te
 
 ## Setting it up
 
+**With GitHub Copilot** (the default): install and sign in to the GitHub Copilot Chat extension, open the Terax chat and send a message. VS Code asks once whether Terax may use the model; allow it. To pick a model, run **Terax: Select AI Model**, choose *GitHub Copilot*, then a model from the list VS Code gives. Nothing else to set up: no key, no token. Terax never sees your GitHub credentials; VS Code does the sign-in and the request.
+
+**With another provider:**
+
 1. Run **Terax: Select AI Model** from the command palette. Pick a provider, then a model (or type a model name; local and custom servers need one).
 2. It asks for the **API key** if the provider needs one (or run **Terax: Set AI API Key** later). The key is kept in VS Code's secret storage on your computer. It is never written to a settings file, and the page (the web view) never sees it.
 3. Click in the chat, type, press Enter.
 
-Providers: OpenAI, Anthropic, Google (Gemini), xAI, Cerebras, Groq, DeepSeek, Mistral, OpenRouter, any OpenAI-compatible server (`terax.ai.baseUrl`), and the local servers LM Studio, MLX and Ollama (no key). They are the same providers, model lists and addresses as in the Terax app. **Not included:** the providers that need a sign-in flow or a service account file (GitHub Copilot, Google Vertex AI): those work through the app's Settings and are not ported.
+Providers:
+
+- **GitHub Copilot, and any other model VS Code offers** (`vscode-lm`), through VS Code's language model API. If another extension registers models, they appear in the same list as `vendor/id`.
+- OpenAI, Anthropic, Google (Gemini), xAI, Cerebras, Groq, DeepSeek, Mistral, OpenRouter, any OpenAI-compatible server (`terax.ai.baseUrl`), and the local servers LM Studio, MLX and Ollama (no key). These are the same providers, model lists and addresses as in the Terax app.
+- **Not included:** Google Vertex AI (a service account file; it works in the app's Settings). The Terax app's own Copilot sign-in (a device login) is not used here either: inside VS Code the language model API is the supported way and needs no token.
+
+**Why `vscode.lm` and not a Copilot login of Terax's own:** it is the route VS Code offers extensions for exactly this, it uses the subscription and the sign-in you already have, and Terax holds no GitHub token. It needs **VS Code 1.95 or newer** (the version that added tools to the API) and the Copilot Chat extension.
 
 ## What the agent can do
 
@@ -52,7 +62,7 @@ Other things in the chat:
 
 Commands: **Focus AI Chat**, **New AI Chat**, **Stop AI**, **Select AI Model**, **Set AI API Key**, **Remove AI API Key**, **Open AI Settings**, **Ask Terax AI About Selection**.
 
-Settings (`terax.ai.*`): `provider`, `model`, `baseUrl` (user settings only, see below), `maxSteps` (24: the most steps for one message), `commandTimeoutSeconds` (60).
+Settings (`terax.ai.*`): `provider` (default `vscode-lm`), `model` (for `vscode-lm`, `vendor/id` as the picker saves it; empty means the first Copilot model), `baseUrl` (user settings only, see below), `maxSteps` (24: the most steps for one message), `commandTimeoutSeconds` (60).
 
 ## How it works
 
@@ -74,6 +84,7 @@ The agent runs in the **extension host** (Node), not in the page: the host can c
 | `src/ai/exec.ts`, `commandShell.ts` | Running one command: timeout, output limit, process group, the user's shell |
 | `src/ai/diff.ts`, `walk.ts` | Previews of changes; a bounded folder walk for `glob` and `grep` |
 | `src/ai/model.ts`, `settings.ts`, `keys.ts`, `prompt.ts` | Providers, settings, secret storage, the instructions the model gets |
+| `src/ai/vscodeLm.ts`, `vscodeLmApi.ts` | The AI SDK model that talks to VS Code's language models (Copilot): messages, tools, streaming, errors, stop. `vscodeLmApi.ts` is the only file that touches `vscode.lm`; the rest is tested without VS Code |
 | `src/ai/commands.ts`, `pickers.ts` | The commands and the pickers behind them |
 | `shared/chat.ts` | The events between host and page |
 | `webview/chat/` | The page's side: `state.ts` (events to view), `markdown.ts` (safe reader), `render.ts`, `approval.ts`, `panel.ts`, `layout.ts` |
@@ -98,10 +109,14 @@ The agent runs in the **extension host** (Node), not in the page: the host can c
 
 ## What was verified, and what was not
 
-- **Unit tests:** 139 for the host side (guard, tools, command execution, approvals, the loop with a scripted model, the chat controller, model creation for every provider, settings, keys, prompt, pickers, command shell), 46 for the page's side (the Markdown reader including hostile input, the event-to-view state, layout rules), 28 for the router.
+- **Unit tests:** 173 for the host side (guard, tools, command execution, approvals, the loop with a scripted model, the chat controller, model creation for every provider, settings, keys, prompt, pickers, command shell, the VS Code language model adapter), 46 for the page's side (the Markdown reader including hostile input, the event-to-view state, layout rules), 28 for the router.
 - **End to end in real VS Code** (code-server 4.108 = VS Code 1.108 on the web, headless Chromium, `vscode-extension/e2e/chat.mjs`, 55 checks) against a **scripted fake OpenAI-compatible server**, so the whole path runs: page, host, the AI SDK's HTTP streaming and tool calls, tools, the popup, files and shell on disk. Checked: layout and the model name in the header; a reading tool runs without asking and the answer is drawn; the model is given the eight tools and the workspace; Insert in terminal does not run; a command is held until **Run**, with its folder shown, Enter alone does not approve, the panel tab shows a number and clears; output is shown and given to the model; **Deny**, **Esc**, **Ctrl+Enter**; write and edit show their changes before they are applied; an edit without a prior read, a write outside the workspace, a secrets file, and a destructive command are refused without a popup and the secret never reaches the model; the agent reads the terminal; **Stop** ends a turn and abandons the request, also while a question is open (from the palette); a question that arrives while the panel is **hidden** brings the panel back, with the popup showing and the command not yet run; a click on the dimmed area does not lose the keyboard; after **Reload Webviews** the conversation and a still-waiting question come back and answering it runs the command; dragging the splitter and folding the chat change the terminal's rows; the commands; **Set AI API Key** (hidden field) is kept in secret storage and sent as the bearer token, and is not in the settings file; **Select AI Model** changes the header at once and the next request's model; New chat leaves nothing from before for the model. The terminal-only e2e (`run.mjs`, 25 checks) still passes with the chat present.
 - Bugs found by that test and fixed: clicking the dimmed area dropped keyboard focus out of the popup so `Esc` stopped working; and, **not related to the chat**, a webview reload made the old shells' late "exit" hit the new page's first terminal (ids restarted at 1), so the terminal looked dead. The host now tells each page which id to start from.
+- **GitHub Copilot path** (`e2e/chat-lm.mjs`, 14 checks, in the same code-server): Copilot cannot run there, so a small provider extension (`e2e/fake-lm-extension/`) registers a scripted model through the same `vscode.lm` API Copilot uses, and Terax drives it as it would Copilot. Checked: the default is *GitHub Copilot* with no setup; **Select AI Model** lists *GitHub Copilot* first (no key needed) and then the models VS Code has; the choice is saved and the header follows; a turn goes through VS Code's API with Terax's instructions first, the question last and the eight tools; a tool's result goes back to the model as a result for the same call; the popup holds a command, **Run** runs it, **Deny** tells the model; **Stop** ends the turn at once even when the model never answers; the chat carries on afterwards. 26 unit tests cover the adapter (message and tool conversion, streaming, model choice, permission and blocked errors, cancellation, a model that ignores the cancellation).
+- A real gap the e2e found and fixed: Stop first only cancelled VS Code's token and waited for the stream to end, which never happened with a stalled model; the adapter now stops waiting at once.
 - **Not verified:**
+  - **GitHub Copilot itself was not used** (it cannot run in the sandbox, and there is no subscription). What is verified is Terax's side of the `vscode.lm` API with a stand-in provider. How real Copilot models behave is not: whether a model supports tools (one that does not will answer with an error), the size of its context (a long conversation or a big tool result can exceed it), its quota and rate limits, and the first-use consent prompt (it did not appear for the stand-in, so its wording and flow are unseen).
+  - **Stopping does not always stop the model.** Terax cancels the request and stops waiting at once, but in VS Code 1.108 the model's extension was not told about the cancellation (the stand-in's token never fired), so a provider may keep generating, and counting against a quota, until it finishes. That is VS Code's behaviour, seen with the stand-in; it may differ for Copilot.
   - **No real AI provider was called** (no network or keys in the sandbox). The OpenAI-compatible wire path ran against the fake server; the native OpenAI, Anthropic, Google, xAI and other providers use the same SDK and are built in the unit tests, but no request to them was made. A provider changing its API, or a model that answers badly to tool calls, would show up only in real use.
   - **How well a real model uses the tools** (follows the instructions, picks sensible commands) was not assessed: the model in the tests is a script.
   - **The desktop VS Code (Electron), macOS and Windows.** The command shell choice for PowerShell, `cmd` and macOS login shells is unit-tested, not run. `fork-ci.yml` runs the unit tests on all three systems; the end-to-end test needs a code-server and is not in CI.

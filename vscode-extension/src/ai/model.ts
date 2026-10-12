@@ -1,7 +1,8 @@
 import type { LanguageModel } from "ai";
 import type { ChatErrorHint } from "../../shared/chat";
 import { getProvider } from "../../../src/modules/ai/config";
-import { type AiSettings, defaultBaseUrl, effectiveModel, needsApiKey } from "./settings";
+import { type AiSettings, defaultBaseUrl, effectiveModel, needsApiKey, VSCODE_LM } from "./settings";
+import { createVsCodeLmModel, type LmApi } from "./vscodeLm";
 
 /** Something the person has to fix in their setup, with where to fix it. */
 export class ChatSetupError extends Error {
@@ -29,7 +30,11 @@ const OPENAI_COMPATIBLE: Partial<Record<string, { name: string; baseURL: string;
  * the Terax app, without its Tauri-only network proxy: the extension host can call the providers
  * directly. Each provider package is loaded only when it is used.
  */
-export async function createModel(settings: AiSettings, apiKey: string | undefined): Promise<LanguageModel> {
+export async function createModel(settings: AiSettings, apiKey: string | undefined, lm?: LmApi): Promise<LanguageModel> {
+  if (settings.provider === VSCODE_LM) {
+    if (!lm) throw new ChatSetupError("VS Code's language models are not available here.", "select-model");
+    return createVsCodeLmModel(lm, settings);
+  }
   const provider = settings.provider;
   const label = getProvider(provider).label;
   const modelId = effectiveModel(settings);

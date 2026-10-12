@@ -1,17 +1,30 @@
-import { getProvider, type ProviderId } from "../../../src/modules/ai/config";
-import { modelsFor, needsApiKey, needsModelName, SUPPORTED_PROVIDERS, type SupportedProvider } from "./settings";
+import { AI_PROVIDERS, type AiProvider, modelsFor, needsApiKey, needsModelName, providerLabel, type SupportedProvider, VSCODE_LM } from "./settings";
 
 export type PickItem<T> = { label: string; description?: string; detail?: string; value: T };
 
 /** The providers to choose from, with whether a key is already stored for each. */
-export function providerItems(hasKey: (provider: ProviderId) => boolean, current: SupportedProvider): PickItem<SupportedProvider>[] {
-  return SUPPORTED_PROVIDERS.map((provider) => {
+export function providerItems(hasKey: (provider: AiProvider) => boolean, current: AiProvider): PickItem<AiProvider>[] {
+  return AI_PROVIDERS.map((provider) => {
     const needs = needsApiKey(provider);
-    const description = [provider === current ? "current" : "", needs ? (hasKey(provider) ? "key saved" : "no key yet") : "no key needed"]
-      .filter(Boolean)
-      .join(" · ");
-    return { label: getProvider(provider).label, description, value: provider };
+    const note = provider === VSCODE_LM ? "uses your sign-in in VS Code, no key" : needs ? (hasKey(provider) ? "key saved" : "no key yet") : "no key needed";
+    const description = [provider === current ? "current" : "", note].filter(Boolean).join(" · ");
+    return { label: providerLabel(provider), description, value: provider };
   });
+}
+
+/** The models VS Code has, for the picker. The first entry leaves the choice to Terax (a Copilot model). */
+export function languageModelItems(models: readonly { id: string; vendor: string; name: string; family: string; maxInputTokens: number }[], current: string): PickItem<string>[] {
+  const items: PickItem<string>[] = [{ label: "Default", description: current === "" ? "current" : "", detail: "The first GitHub Copilot model VS Code offers", value: "" }];
+  for (const m of models) {
+    const value = `${m.vendor}/${m.id}`;
+    items.push({
+      label: m.name,
+      description: `${m.vendor} · ${m.id}${value === current ? " · current" : ""}`,
+      detail: `${m.family}, up to ${m.maxInputTokens.toLocaleString("en-US")} tokens of input`,
+      value,
+    });
+  }
+  return items;
 }
 
 /** What can be picked as a model: Terax's list for the provider, and always a way to type a name. */

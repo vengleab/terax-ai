@@ -1,14 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { modelItems, OTHER_MODEL, providerItems, selectionPrompt } from "./pickers";
-import { SUPPORTED_PROVIDERS } from "./settings";
+import { languageModelItems, modelItems, OTHER_MODEL, providerItems, selectionPrompt } from "./pickers";
+import { AI_PROVIDERS } from "./settings";
 
 describe("providerItems", () => {
   it("lists every supported provider once, saying what each still needs", () => {
     const items = providerItems((p) => p === "openai", "anthropic");
-    expect(items.map((i) => i.value)).toEqual([...SUPPORTED_PROVIDERS]);
+    expect(items.map((i) => i.value)).toEqual([...AI_PROVIDERS]);
+    expect(items[0].value).toBe("vscode-lm");
+    expect(items[0].description).toBe("uses your sign-in in VS Code, no key");
     expect(items.find((i) => i.value === "openai")?.description).toBe("key saved");
     expect(items.find((i) => i.value === "anthropic")?.description).toBe("current · no key yet");
     expect(items.find((i) => i.value === "ollama")?.description).toBe("no key needed");
+  });
+});
+
+describe("languageModelItems", () => {
+  const models = [
+    { id: "gpt-4o", vendor: "copilot", name: "GPT-4o", family: "gpt-4o", maxInputTokens: 64000 },
+    { id: "fast", vendor: "acme", name: "Acme Fast", family: "fast", maxInputTokens: 8000 },
+  ];
+
+  it("starts with a default, then lists each model by vendor and id", () => {
+    const items = languageModelItems(models, "");
+    expect(items.map((i) => i.value)).toEqual(["", "copilot/gpt-4o", "acme/fast"]);
+    expect(items[0].description).toBe("current");
+    expect(items[1]).toMatchObject({ label: "GPT-4o", description: "copilot · gpt-4o" });
+    expect(items[1].detail).toContain("64,000");
+  });
+
+  it("marks the model that is in use", () => {
+    const items = languageModelItems(models, "acme/fast");
+    expect(items[2].description).toContain("current");
+    expect(items[0].description).toBe("");
   });
 });
 

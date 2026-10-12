@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "private": true,
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.95.0"
   },
   "categories": [
     "Other"
@@ -228,9 +228,10 @@
         },
         "terax.ai.provider": {
           "type": "string",
-          "default": "openai",
+          "default": "vscode-lm",
           "scope": "machine",
           "enum": [
+            "vscode-lm",
             "openai",
             "anthropic",
             "google",
@@ -245,13 +246,29 @@
             "mlx",
             "ollama"
           ],
-          "markdownDescription": "Which service answers in the Terax AI chat. Use **Terax: Select AI Model** to change it. This can only be set in your user settings, so a project cannot send your prompts and files to a server it chose."
+          "markdownDescription": "Which service answers in the Terax AI chat. The default, `vscode-lm`, uses GitHub Copilot (or another model) through VS Code, with no key. Use **Terax: Select AI Model** to change it. This can only be set in your user settings, so a project cannot send your prompts and files to a server it chose.",
+          "enumDescriptions": [
+            "GitHub Copilot, and any other language model VS Code offers. Uses the account you are signed in with in VS Code: no key.",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ]
         },
         "terax.ai.model": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "markdownDescription": "The model's name as the provider calls it. Empty uses the provider's first model in Terax's list. Local and custom providers need a name here."
+          "markdownDescription": "The model's name as the provider calls it. For `vscode-lm` it is `vendor/id` as **Terax: Select AI Model** saves it; empty uses the first GitHub Copilot model. Otherwise empty uses the provider's first model in Terax's list, and local and custom providers need a name here."
         },
         "terax.ai.baseUrl": {
           "type": "string",
@@ -281,7 +298,7 @@
     "package": "node scripts/package.mjs"
   },
   "devDependencies": {
-    "@types/vscode": "1.90.0"
+    "@types/vscode": "1.95.0"
   },
   "repository": {
     "type": "git",

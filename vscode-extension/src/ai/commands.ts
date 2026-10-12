@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
-import { getProvider } from "../../../src/modules/ai/config";
 import type { PageCommand } from "../../shared/chat";
 import type { ChatController } from "./chat";
 import type { ApiKeys } from "./keys";
-import { modelItems, OTHER_MODEL, providerItems, selectionPrompt } from "./pickers";
-import { aiSettings, defaultBaseUrl, needsApiKey, SUPPORTED_PROVIDERS, type SupportedProvider } from "./settings";
+import { languageModelItems, modelItems, OTHER_MODEL, providerItems, selectionPrompt } from "./pickers";
+import { AI_PROVIDERS, aiSettings, defaultBaseUrl, needsApiKey, providerLabel, VSCODE_LM } from "./settings";
+import { vscodeLm } from "./vscodeLmApi";
 
 export type AiCommandApi = {
   keys: ApiKeys;
@@ -18,7 +18,11 @@ const settings = () => aiSettings((section, fallback) => vscode.workspace.getCon
 
 async function setApiKey(api: AiCommandApi): Promise<void> {
   const provider = settings().provider;
-  const label = getProvider(provider).label;
+  const label = providerLabel(provider);
+  if (provider === VSCODE_LM) {
+    void vscode.window.showInformationMessage("Terax AI: GitHub Copilot needs no key here. It uses the account you are signed in with in VS Code.");
+    return;
+  }
   const key = await vscode.window.showInputBox({
     title: `Terax AI: API key for ${label}`,
     prompt: needsApiKey(provider)
@@ -35,24 +39,33 @@ async function setApiKey(api: AiCommandApi): Promise<void> {
 
 async function clearApiKey(api: AiCommandApi): Promise<void> {
   const provider = settings().provider;
+  if (provider === VSCODE_LM) {
+    void vscode.window.showInformationMessage("Terax AI: there is no key to remove for GitHub Copilot. Sign out of it in VS Code's Accounts menu.");
+    return;
+  }
   await api.keys.clear(provider);
-  void vscode.window.showInformationMessage(`Terax AI: the ${getProvider(provider).label} key was removed.`);
+  void vscode.window.showInformationMessage(`Terax AI: the ${providerLabel(provider)} key was removed.`);
 }
 
 async function selectModel(api: AiCommandApi): Promise<void> {
   const current = settings();
   const saved = new Set<string>();
-  for (const provider of SUPPORTED_PROVIDERS) if (await api.keys.has(provider)) saved.add(provider);
+  for (const provider of AI_PROVIDERS) if (provider !== VSCODE_LM && (await api.keys.has(provider))) saved.add(provider);
 
   const chosenProvider = await vscode.window.showQuickPick(providerItems((p) => saved.has(p), current.provider), {
     title: "Terax AI: choose a provider (1 of 2)",
     placeHolder: "Which service should answer?",
   });
   if (!chosenProvider) return;
-  const provider: SupportedProvider = chosenProvider.value;
+  const provider = chosenProvider.value;
+
+  if (provider === VSCODE_LM) {
+    await selectLanguageModel(current.provider === VSCODE_LM ? current.model : "");
+    return;
+  }
 
   const picked = await vscode.window.showQuickPick(modelItems(provider, provider === current.provider ? current.model : ""), {
-    title: `Terax AI: choose a model for ${getProvider(provider).label} (2 of 2)`,
+    title: `Terax AI: choose a model for ${providerLabel(provider)} (2 of 2)`,
     matchOnDescription: true,
     matchOnDetail: true,
   });
@@ -60,7 +73,7 @@ async function selectModel(api: AiCommandApi): Promise<void> {
   let model: string;
   if (picked.value === OTHER_MODEL) {
     const typed = await vscode.window.showInputBox({
-      title: `Terax AI: model name for ${getProvider(provider).label}`,
+      title: `Terax AI: model name for ${providerLabel(provider)}`,
       prompt: "The model id exactly as the provider names it.",
       value: provider === current.provider ? current.model : "",
       ignoreFocusOut: true,
@@ -90,6 +103,30 @@ async function selectModel(api: AiCommandApi): Promise<void> {
   else if (provider !== current.provider && defaultBaseUrl(provider) === "") await config().update("baseUrl", undefined, target);
 
   if (needsApiKey(provider) && !(await api.keys.has(provider))) await setApiKey(api);
+}
+
+/** The models VS Code offers (GitHub Copilot's, and any other extension's), chosen from a live list. */
+async function selectLanguageModel(current: string): Promise<void> {
+  const models = await vscodeLm.models();
+  if (models.length === 0) {
+    const install = "Find GitHub Copilot Chat";
+    const answer = await vscode.window.showWarningMessage(
+      "Terax AI: VS Code has no language models yet. Install GitHub Copilot Chat and sign in to it, then try again.",
+      install,
+    );
+    if (answer === install) await vscode.commands.executeCommand("workbench.extensions.search", "GitHub Copilot Chat");
+    return;
+  }
+  const picked = await vscode.window.showQuickPick(languageModelItems(models, current), {
+    title: "Terax AI: choose a model from VS Code (2 of 2)",
+    placeHolder: "VS Code asks you to allow Terax the first time it uses a model",
+    matchOnDescription: true,
+    matchOnDetail: true,
+  });
+  if (!picked) return;
+  const target = vscode.ConfigurationTarget.Global;
+  await config().update("provider", VSCODE_LM, target);
+  await config().update("model", picked.value, target);
 }
 
 async function openSettings(): Promise<void> {

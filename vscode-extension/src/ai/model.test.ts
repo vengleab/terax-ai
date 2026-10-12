@@ -14,6 +14,23 @@ async function failure(settings: AiSettings, key: string | undefined): Promise<C
   throw new Error("expected createModel to throw");
 }
 
+describe("createModel for VS Code's own models", () => {
+  it("builds a model from the VS Code interface", async () => {
+    const model = (await createModel({ ...base, provider: "vscode-lm" }, undefined, {} as never)) as { provider: string; specificationVersion: string };
+    expect(model.provider).toBe("vscode-lm");
+    expect(model.specificationVersion).toBe("v3");
+  });
+
+  it("needs no key", async () => {
+    await expect(createModel({ ...base, provider: "vscode-lm" }, undefined, {} as never)).resolves.toBeDefined();
+  });
+
+  it("says so when VS Code's models are not available where it runs", async () => {
+    const error = await failure({ ...base, provider: "vscode-lm" }, undefined);
+    expect(error.hint).toBe("select-model");
+  });
+});
+
 describe("createModel", () => {
   it("builds a hosted model from the provider's first model when none is chosen", async () => {
     const model = (await createModel(base, "sk-test")) as { modelId: string; provider: string };

@@ -28,8 +28,18 @@ export const SUPPORTED_PROVIDERS = [
 
 export type SupportedProvider = (typeof SUPPORTED_PROVIDERS)[number];
 
+/**
+ * The chat can also use the language models VS Code itself offers (`vscode.lm`): GitHub Copilot, and any
+ * other extension that registers a model. VS Code owns the sign-in, so there is no key and no address.
+ */
+export const VSCODE_LM = "vscode-lm" as const;
+export type AiProvider = SupportedProvider | typeof VSCODE_LM;
+
+/** In the order they are offered: Copilot first, as most people with a subscription want it. */
+export const AI_PROVIDERS: readonly AiProvider[] = [VSCODE_LM, ...SUPPORTED_PROVIDERS];
+
 export type AiSettings = {
-  provider: SupportedProvider;
+  provider: AiProvider;
   /** Empty means the provider's first model in Terax's list. */
   model: string;
   baseUrl: string;
@@ -41,13 +51,21 @@ export function isSupportedProvider(value: unknown): value is SupportedProvider 
   return typeof value === "string" && (SUPPORTED_PROVIDERS as readonly string[]).includes(value);
 }
 
+export function isAiProvider(value: unknown): value is AiProvider {
+  return value === VSCODE_LM || isSupportedProvider(value);
+}
+
+export function providerLabel(provider: AiProvider): string {
+  return provider === VSCODE_LM ? "GitHub Copilot (and other VS Code models)" : getProvider(provider).label;
+}
+
 const clamp = (value: number, min: number, max: number, fallback: number): number =>
   Number.isFinite(value) ? Math.round(Math.min(max, Math.max(min, value))) : fallback;
 
 export function aiSettings(get: ConfigGetter): AiSettings {
-  const provider = get<string>("terax.ai.provider", "openai");
+  const provider = get<string>("terax.ai.provider", VSCODE_LM);
   return {
-    provider: isSupportedProvider(provider) ? provider : "openai",
+    provider: isAiProvider(provider) ? provider : VSCODE_LM,
     model: get<string>("terax.ai.model", "").trim(),
     baseUrl: get<string>("terax.ai.baseUrl", "").trim(),
     maxSteps: clamp(get<number>("terax.ai.maxSteps", 24), 1, 100, 24),
@@ -62,7 +80,8 @@ export function aiSettings(get: ConfigGetter): AiSettings {
 const PLACEHOLDER_MODEL = /-(custom|local)$/;
 
 /** The models Terax knows by name for a provider. Empty for providers where you type the model's name. */
-export function modelsFor(provider: ProviderId): { id: string; label: string; description: string }[] {
+export function modelsFor(provider: AiProvider): { id: string; label: string; description: string }[] {
+  if (provider === VSCODE_LM) return [];
   return MODELS.filter((m) => m.provider === provider && !PLACEHOLDER_MODEL.test(m.id)).map((m) => ({
     id: m.id,
     label: m.label,
@@ -71,11 +90,11 @@ export function modelsFor(provider: ProviderId): { id: string; label: string; de
 }
 
 /** Whether the person has to type the model's name, because Terax has no list for this provider. */
-export function needsModelName(provider: ProviderId): boolean {
-  return modelsFor(provider).length === 0;
+export function needsModelName(provider: AiProvider): boolean {
+  return provider !== VSCODE_LM && modelsFor(provider).length === 0;
 }
 
-export function defaultModelFor(provider: ProviderId): string | undefined {
+export function defaultModelFor(provider: AiProvider): string | undefined {
   return modelsFor(provider)[0]?.id;
 }
 
@@ -84,7 +103,7 @@ export function effectiveModel(settings: AiSettings): string {
   return settings.model || defaultModelFor(settings.provider) || "";
 }
 
-export function defaultBaseUrl(provider: ProviderId): string {
+export function defaultBaseUrl(provider: AiProvider): string {
   switch (provider) {
     case "lmstudio":
       return LMSTUDIO_DEFAULT_BASE_URL;
@@ -97,12 +116,23 @@ export function defaultBaseUrl(provider: ProviderId): string {
   }
 }
 
-export function needsApiKey(provider: ProviderId): boolean {
-  return providerNeedsKey(provider);
+export function needsApiKey(provider: AiProvider): boolean {
+  return provider !== VSCODE_LM && providerNeedsKey(provider);
+}
+
+/** The VS Code model setting is "vendor/id" (as the picker saves it), or just an id. */
+export function splitVsCodeModel(value: string): { vendor?: string; id: string } {
+  const slash = value.indexOf("/");
+  return slash > 0 ? { vendor: value.slice(0, slash), id: value.slice(slash + 1) } : { id: value };
 }
 
 /** "OpenAI · GPT-5.4 mini", for the chat's model button. */
 export function describeModel(settings: AiSettings): string {
+  if (settings.provider === VSCODE_LM) {
+    if (!settings.model) return "GitHub Copilot · default";
+    const { vendor, id } = splitVsCodeModel(settings.model);
+    return !vendor || vendor === "copilot" ? `GitHub Copilot · ${id}` : `${vendor} · ${id}`;
+  }
   const provider = getProvider(settings.provider).label;
   const id = effectiveModel(settings);
   const known = MODELS.find((m) => m.provider === settings.provider && m.id === id);
