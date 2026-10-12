@@ -3,14 +3,31 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as vscode from "vscode";
 import { VIEW_ID } from "../shared/messages";
+import { ChatController } from "./ai/chat";
+import { commandShell } from "./ai/commandShell";
+import { registerAiCommands, runPageCommand } from "./ai/commands";
+import { WorkspaceGuard } from "./ai/guard";
+import { ApiKeys } from "./ai/keys";
+import { createModel } from "./ai/model";
+import { aiSettings } from "./ai/settings";
+import { buildTools } from "./ai/tools";
 import { buildHtml, makeNonce } from "./html";
 import { findHelper } from "./helperPath";
 import { HelperClient } from "./helperClient";
 import { SessionRouter } from "./router";
 import { chooseCwd, chooseShell, profileFor, shellEnvironment } from "./shell";
-import { terminalSettings } from "./settings";
+import { type ConfigGetter, terminalSettings } from "./settings";
 
 const CONTEXT_TAKE_OVER = "terax.takeOverShortcuts";
+
+const getConfig: ConfigGetter = (section, fallback) => {
+  const dot = section.lastIndexOf(".");
+  return vscode.workspace.getConfiguration(section.slice(0, dot)).get(section.slice(dot + 1), fallback);
+};
+
+function workspacePaths(): string[] {
+  return (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === "file").map((f) => f.uri.fsPath);
+}
 
 function osKey(platform: NodeJS.Platform): "windows" | "osx" | "linux" {
   return platform === "win32" ? "windows" : platform === "darwin" ? "osx" : "linux";
@@ -22,6 +39,8 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
   private readonly router: SessionRouter;
   private readonly helper: HelperClient;
   private readonly output = vscode.window.createOutputChannel("Terax Terminal");
+  readonly keys: ApiKeys;
+  readonly chat: ChatController;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     const log = (level: "info" | "warn" | "error", message: string) =>
@@ -38,6 +57,31 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
       },
       env: () => shellEnvironment(process.env, {}),
       log,
+    });
+    this.keys = new ApiKeys(context.secrets);
+    const guard = new WorkspaceGuard(workspacePaths);
+    this.chat = new ChatController({
+      post: (event) => {
+        if (this.router.isReady) void this.view?.webview.postMessage({ type: "chat", event });
+        this.showPendingBadge();
+      },
+      settings: () => aiSettings(getConfig),
+      apiKey: (settings) => this.keys.get(settings.provider),
+      buildModel: createModel,
+      buildTools,
+      toolContext: () => ({
+        guard,
+        readTerminal: (lines) => this.router.readTerminalText(lines),
+        shell: () => {
+          const plan = this.launchPlan();
+          return { file: plan.file, args: commandShell(plan.file, process.platform).args, env: plan.env };
+        },
+        commandTimeoutSeconds: () => aiSettings(getConfig).commandTimeoutSeconds,
+      }),
+      folders: workspacePaths,
+      shellName: () => this.launchPlan().title,
+      // Shown without taking the keyboard, so a question is seen but typing is not interrupted.
+      reveal: () => this.view?.show(true),
     });
     this.router = new SessionRouter({
       helper: this.helper,
@@ -56,7 +100,20 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
       },
       openLink: (uri) => void vscode.env.openExternal(vscode.Uri.parse(uri)),
       log,
+      chat: this.chat,
+      runPageCommand,
     });
+  }
+
+  /** A number on the panel's icon while the agent waits for an answer, in case the panel is hidden. */
+  private showPendingBadge(): void {
+    if (!this.view) return;
+    const waiting = this.chat.pendingApprovals.length;
+    // A badge of 0 is not drawn. Unsetting it with `undefined` left the old number showing in VS Code 1.108.
+    this.view.badge = {
+      value: waiting,
+      tooltip: waiting === 1 ? "Terax AI is waiting for your answer" : waiting > 1 ? `Terax AI is waiting for ${waiting} answers` : "",
+    };
   }
 
   private launchPlan(cwdFromPage?: string) {
@@ -116,6 +173,7 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
       styleUri: uri("index.css"),
     });
     view.webview.onDidReceiveMessage((message) => this.router.receive(message));
+    this.showPendingBadge();
     view.onDidDispose(() => {
       this.view = undefined;
       this.router.pageClosed();
@@ -123,6 +181,7 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
   }
 
   dispose(): void {
+    this.chat.stop();
     this.router.pageClosed();
     this.helper.dispose();
     this.output.dispose();
@@ -143,6 +202,13 @@ export function activate(context: vscode.ExtensionContext): void {
     await vscode.commands.executeCommand(`${VIEW_ID}.focus`);
   };
 
+  const focusChat = async (prefill?: string) => {
+    if (prefill !== undefined) provider.routerApi.send({ type: "chat-prefill", text: prefill });
+    await focus();
+    provider.routerApi.send({ type: "chat-focus" });
+  };
+  registerAiCommands(context, { keys: provider.keys, chat: provider.chat, focusChat });
+
   context.subscriptions.push(
     provider,
     vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
@@ -150,6 +216,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("terax.takeOverShortcuts")) setTakeOver();
+      if (event.affectsConfiguration("terax.ai")) provider.routerApi.modelChanged();
       if (
         event.affectsConfiguration("terminal.integrated") ||
         event.affectsConfiguration("editor.fontFamily")

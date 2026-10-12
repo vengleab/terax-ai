@@ -202,6 +202,28 @@ export class TerminalSession {
     this.model?.clear();
   }
 
+  /**
+   * Puts text at the prompt for the person to look at, without running it. A text with several lines
+   * is only inserted when the shell has bracketed paste, which keeps the lines from running as they
+   * arrive; otherwise nothing is inserted and the caller says so.
+   */
+  insertText(text: string): boolean {
+    const body = text.replace(/\r?\n$/, "");
+    if (!this.model || !this.input || this.exited) return false;
+    if (body.includes("\n") && !this.model.modes().bracketedPaste) return false;
+    this.input.paste(body);
+    return true;
+  }
+
+  /** The last `lines` lines of the terminal, scrollback included, for the AI to read. */
+  readText(lines: number): string {
+    try {
+      return this.model?.readText(lines) ?? "";
+    } catch {
+      return "";
+    }
+  }
+
   applySettings(): void {
     const { surface, model, deps } = this;
     if (!surface || !model) return;

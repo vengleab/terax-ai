@@ -7,7 +7,9 @@ import {
 } from "@/modules/terminal/ghostty/gpu/terminalVisuals";
 import { supportsWasmSimd, TeraxGhostty } from "@terax/ghostty-core/adapted";
 import { type HostMessage, type TerminalSettings, toBytes } from "../shared/messages";
-import { onHostMessage, post, resolveClipboard } from "./bridge";
+import { onHostMessage, post, resolveClipboard, saveState, savedState } from "./bridge";
+import { ChatPanel } from "./chat/panel";
+import { readLayout } from "./chat/layout";
 import { TerminalSession } from "./TerminalSession";
 
 const CLOSE_DELAY_MS = 600;
@@ -15,6 +17,22 @@ const THEME_DEBOUNCE_MS = 60;
 
 const tabs = document.getElementById("tabs") as HTMLDivElement;
 const stage = document.getElementById("stage") as HTMLDivElement;
+
+const chat = new ChatPanel({
+  app: document.getElementById("app") as HTMLElement,
+  splitter: document.getElementById("splitter") as HTMLElement,
+  root: document.getElementById("chat") as HTMLElement,
+  popupHost: document.getElementById("approvals") as HTMLElement,
+  layout: readLayout(savedState()),
+  saveLayout: saveState,
+  post,
+  insertIntoTerminal: (text) => {
+    const session = activeId === null ? undefined : sessions.get(activeId);
+    const inserted = session?.insertText(text) ?? false;
+    if (inserted) session?.focus();
+    return inserted;
+  },
+});
 
 let runtime: GhosttyCoreRuntime | null = null;
 let settings: TerminalSettings | null = null;
@@ -165,6 +183,7 @@ function watchTheme(): void {
 
 async function init(message: Extract<HostMessage, { type: "init" }>): Promise<void> {
   isMac = message.isMac;
+  nextId = message.firstId;
   const wasmUrl = supportsWasmSimd() ? message.wasmUrl : message.scalarWasmUrl;
   runtime = new GhosttyCoreRuntime(() => TeraxGhostty.load(wasmUrl));
   await applySettings(message.settings);
@@ -177,6 +196,7 @@ function activeSession(): TerminalSession | undefined {
 }
 
 onHostMessage((message) => {
+  if (chat.handle(message)) return;
   switch (message.type) {
     case "init":
       void init(message).catch((error) => log("error", `init failed: ${String(error)}`));
@@ -222,12 +242,16 @@ onHostMessage((message) => {
     case "clipboard-text":
       resolveClipboard(message.requestId, message.text);
       break;
+    case "terminal-text-request":
+      post({ type: "terminal-text", requestId: message.requestId, text: activeSession()?.readText(message.lines) ?? "" });
+      break;
   }
 });
 
 window.addEventListener("focus", () => {
   post({ type: "focus-state", focused: true });
-  activeSession()?.focus();
+  // Coming back to the chat's message box or the popup, the terminal must not take the focus.
+  if (!chat.hasFocus()) activeSession()?.focus();
 });
 window.addEventListener("blur", () => post({ type: "focus-state", focused: false }));
 post({ type: "ready" });

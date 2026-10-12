@@ -85,6 +85,14 @@ await type(`echo auto-focus > ${TMP}/focus`);
 await wait(800);
 check("typing right after the command reaches the shell, without a click", read("focus") === "auto-focus");
 
+// The chat shares the panel with the terminal. Even in a small panel with the chat open, the terminal stays usable.
+await type(`stty size > ${TMP}/size-with-chat`);
+await wait(800);
+check("the chat sits below the terminal, which keeps at least 4 rows beside it", (await frame.locator("#chat").isVisible()) && Number((read("size-with-chat") ?? "0 0").split(" ")[0]) >= 4, `${read("size-with-chat")}`);
+// The checks below are about the terminal alone, so the chat is folded away (e2e/chat.mjs covers the chat).
+await frame.locator(".chat-toggle").click();
+await wait(500);
+
 let box = await frame.locator("#stage").boundingBox();
 const stage = () => frame.locator("#stage");
 await stage().click({ position: { x: 300, y: 80 } });

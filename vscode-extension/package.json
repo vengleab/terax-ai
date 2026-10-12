@@ -12,7 +12,7 @@
   "categories": [
     "Other"
   ],
-  "main": "./dist/host/src/extension.js",
+  "main": "./dist/host/extension.js",
   "contributes": {
     "viewsContainers": {
       "panel": [
@@ -75,6 +75,47 @@
         "command": "terax.terminal.runSelection",
         "title": "Run Selected Text in Terax Terminal",
         "category": "Terax"
+      },
+      {
+        "command": "terax.ai.focusChat",
+        "title": "Focus AI Chat",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.newChat",
+        "title": "New AI Chat",
+        "category": "Terax",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "terax.ai.stop",
+        "title": "Stop AI",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.selectModel",
+        "title": "Select AI Model",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.setApiKey",
+        "title": "Set AI API Key",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.clearApiKey",
+        "title": "Remove AI API Key",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.openSettings",
+        "title": "Open AI Settings",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.askAboutSelection",
+        "title": "Ask Terax AI About Selection",
+        "category": "Terax"
       }
     ],
     "menus": {
@@ -93,6 +134,11 @@
           "command": "terax.terminal.kill",
           "when": "view == terax.terminalView",
           "group": "navigation@3"
+        },
+        {
+          "command": "terax.ai.newChat",
+          "when": "view == terax.terminalView",
+          "group": "navigation@4"
         }
       ],
       "editor/context": [
@@ -100,6 +146,11 @@
           "command": "terax.terminal.runSelection",
           "when": "editorHasSelection",
           "group": "9_cutcopypaste@99"
+        },
+        {
+          "command": "terax.ai.askAboutSelection",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@100"
         }
       ],
       "explorer/context": [
@@ -174,6 +225,53 @@
             "ctrl+pagedown"
           ],
           "markdownDescription": "Keys VS Code keeps for itself while the Terax terminal has focus, such as `ctrl+shift+p`. Every other key goes to the shell. This is a list of keys because the terminal cannot ask VS Code which commands they are bound to. On macOS, Cmd shortcuts always go to VS Code."
+        },
+        "terax.ai.provider": {
+          "type": "string",
+          "default": "openai",
+          "scope": "machine",
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "xai",
+            "cerebras",
+            "groq",
+            "deepseek",
+            "mistral",
+            "openrouter",
+            "openai-compatible",
+            "lmstudio",
+            "mlx",
+            "ollama"
+          ],
+          "markdownDescription": "Which service answers in the Terax AI chat. Use **Terax: Select AI Model** to change it. This can only be set in your user settings, so a project cannot send your prompts and files to a server it chose."
+        },
+        "terax.ai.model": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The model's name as the provider calls it. Empty uses the provider's first model in Terax's list. Local and custom providers need a name here."
+        },
+        "terax.ai.baseUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The server address for `openai-compatible`, or to override the address of LM Studio, MLX or Ollama, for example `http://localhost:11434/v1`."
+        },
+        "terax.ai.maxSteps": {
+          "type": "number",
+          "default": 24,
+          "minimum": 1,
+          "maximum": 100,
+          "markdownDescription": "The most steps (model replies and tool calls) the agent takes for one message before it stops and asks you to continue."
+        },
+        "terax.ai.commandTimeoutSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 600,
+          "markdownDescription": "How long a command the agent runs may take before it is stopped. The agent can ask for up to 600 seconds for one command."
         }
       }
     }
@@ -189,5 +287,17 @@
     "type": "git",
     "url": "https://github.com/vengleab/terax-ai"
   },
-  "homepage": "https://github.com/vengleab/terax-ai/blob/main/docs/fork/vscode-extension.md"
+  "homepage": "https://github.com/vengleab/terax-ai/blob/main/docs/fork/vscode-extension.md",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In a workspace you have not trusted, the shell, arguments, folder and environment of new terminals come from your own settings only.",
+      "restrictedConfigurations": [
+        "terax.shell",
+        "terax.shellArgs",
+        "terax.cwd",
+        "terax.env"
+      ]
+    }
+  }
 }

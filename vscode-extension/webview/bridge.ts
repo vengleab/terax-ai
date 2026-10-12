@@ -2,12 +2,31 @@ import type { HostMessage, WebviewMessage } from "../shared/messages";
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
+  getState(): unknown;
+  setState(state: unknown): void;
 };
 
 const api = acquireVsCodeApi();
 
 export function post(message: WebviewMessage): void {
   api.postMessage(message);
+}
+
+/** What the page keeps across reloads: the chat's height and whether it is folded. */
+export function savedState(): unknown {
+  try {
+    return api.getState();
+  } catch {
+    return undefined;
+  }
+}
+
+export function saveState(state: unknown): void {
+  try {
+    api.setState(state);
+  } catch {
+    // Keeping the layout is a convenience; the page works without it.
+  }
 }
 
 export function onHostMessage(handler: (message: HostMessage) => void): void {

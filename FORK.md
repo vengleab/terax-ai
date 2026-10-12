@@ -23,7 +23,7 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 | `src/modules/ai/providers/google-vertex/`, `providers/requestBody.ts` | Google Vertex AI provider with service account auth; the user picks the key file and Terax reads it from disk, no keychain (see `docs/fork/google-vertex.md`) |
 | `src/modules/ai/lib/lazyKeys.ts` (and its tests) | Reads API keys from the OS secret store only when used, not at launch; also serves "external" key slots such as Vertex's key file path (see `docs/fork/lazy-keys.md`) |
 | `src-tauri/crates/tauri-plugin-terax-launch/`, `src-tauri/capabilities/launch-folders.json`, `src/modules/launch-folders/` | Lets Terax be VS Code's external terminal: folders handed over by macOS `open -a Terax <folder>` open a terminal tab (see `docs/fork/vscode-terminal.md`) |
-| `vscode-extension/` | A VS Code extension that adds a Terax terminal panel, drawn by Terax's own terminal engine. No seams: it touches no upstream file (see `docs/fork/vscode-extension.md`) |
+| `vscode-extension/` | A VS Code extension that adds a Terax terminal panel, drawn by Terax's own terminal engine, with an AI chat below it that asks before running commands or changing files. No seams: it touches no upstream file, it only imports Terax's AI modules (see `docs/fork/vscode-extension.md` and `docs/fork/vscode-ai-chat.md`) |
 | `docs/fork/` | Fork docs, start at `docs/fork/ssh-transfer.md` |
 | `scripts/fork/` | Sync and seam tooling |
 | `.github/workflows/fork-ci.yml` | Fork CI |
@@ -89,5 +89,6 @@ Upstream's Dependabot config groups all cargo updates. The fork crates pin `russ
 - `docs/fork/lazy-keys.md`: lazy API key reads (no secret-store reads at launch)
 - `docs/fork/google-vertex.md`: the Google Vertex AI provider (service account key file, no keychain)
 - `docs/fork/vscode-extension.md`: the Terax terminal panel inside VS Code
+- `docs/fork/vscode-ai-chat.md`: the AI chat in that panel, with the popup that asks before it acts
 - `docs/fork/vscode-terminal.md`: using Terax as VS Code's external terminal
 - `docs/fork/ssh-transfer.md`: the SSH File Transfer feature

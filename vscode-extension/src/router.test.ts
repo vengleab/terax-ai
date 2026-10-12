@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ChatEvent, PageCommand } from "../shared/chat";
 import type { HostMessage, TerminalSettings } from "../shared/messages";
-import { type HelperEvents, type HelperPort, type LaunchPlan, SessionRouter } from "./router";
+import { type ChatPort, type HelperEvents, type HelperPort, type LaunchPlan, SessionRouter } from "./router";
 
 const SETTINGS: TerminalSettings = {
   fontFamily: "monospace",
@@ -33,6 +34,18 @@ function setup(over: { launch?: (cwd?: string) => LaunchPlan; clipboardRead?: ()
   const log = vi.fn();
   const openLink = vi.fn();
   const written: string[] = [];
+  const chatCalls: string[] = [];
+  const chatEvents: ChatEvent[] = [];
+  const pageCommands: PageCommand[] = [];
+  const chat: ChatPort = {
+    events: chatEvents,
+    running: false,
+    modelLabel: "OpenAI · GPT",
+    send: async (text) => void chatCalls.push(`send ${text}`),
+    stop: () => void chatCalls.push("stop"),
+    reset: () => void chatCalls.push("reset"),
+    answerApproval: (id, approved) => void chatCalls.push(`approval ${id} ${approved}`),
+  };
   const launch = over.launch ?? ((cwd) => ({ file: "/bin/zsh", args: ["-l"], cwd: cwd ?? "/home/me", env: { A: "1" }, title: "zsh" }));
   const router = new SessionRouter({
     helper,
@@ -44,8 +57,10 @@ function setup(over: { launch?: (cwd?: string) => LaunchPlan; clipboardRead?: ()
     clipboard: { read: over.clipboardRead ?? (async () => "pasted"), write: async (t) => void written.push(t) },
     openLink,
     log,
+    chat,
+    runPageCommand: (command) => void pageCommands.push(command),
   });
-  return { router, posted, calls, helperEvents: () => listener, log, openLink, written };
+  return { router, posted, calls, helperEvents: () => listener, log, openLink, written, chatCalls, chatEvents, pageCommands };
 }
 
 const ofType = <T extends HostMessage["type"]>(posted: HostMessage[], type: T) =>
@@ -56,7 +71,10 @@ describe("starting up", () => {
     const { router, posted, calls } = setup();
     router.receive({ type: "ready" });
     expect(calls).toEqual(["killAll"]);
-    expect(posted).toEqual([{ type: "init", wasmUrl: "w", scalarWasmUrl: "s", settings: SETTINGS, isMac: true, cwd: undefined }]);
+    expect(posted).toEqual([
+      { type: "init", wasmUrl: "w", scalarWasmUrl: "s", settings: SETTINGS, isMac: true, cwd: undefined, firstId: 1 },
+      { type: "chat-sync", events: [], model: "OpenAI · GPT", running: false },
+    ]);
     expect(router.isReady).toBe(true);
   });
 
@@ -89,9 +107,9 @@ describe("starting up", () => {
     router.send({ type: "focus" });
     expect(posted).toEqual([]);
     router.receive({ type: "ready" });
-    expect(posted.map((m) => m.type)).toEqual(["init", "focus"]);
+    expect(posted.map((m) => m.type)).toEqual(["init", "chat-sync", "focus"]);
     router.receive({ type: "ready" });
-    expect(posted.map((m) => m.type)).toEqual(["init", "focus", "init"]);
+    expect(posted.map((m) => m.type)).toEqual(["init", "chat-sync", "focus", "init", "chat-sync"]);
   });
 });
 
@@ -224,5 +242,111 @@ describe("closing", () => {
     router.pageClosed();
     expect(calls).toEqual(["killAll"]);
     expect(router.isReady).toBe(false);
+  });
+});
+
+describe("the AI chat", () => {
+  it("brings a page that starts up to date with the conversation", () => {
+    const { router, posted, chatEvents } = setup();
+    chatEvents.push({ type: "user", id: "u1", text: "hi" });
+    router.receive({ type: "ready" });
+    expect(ofType(posted, "chat-sync")).toEqual([{ type: "chat-sync", events: [{ type: "user", id: "u1", text: "hi" }], model: "OpenAI · GPT", running: false }]);
+  });
+
+  it("passes the page's questions and answers on to the chat", () => {
+    const { router, chatCalls } = setup();
+    router.receive({ type: "ready" });
+    router.receive({ type: "chat-send", text: "run the tests" });
+    router.receive({ type: "chat-approval", id: "c1", approved: true });
+    router.receive({ type: "chat-approval", id: "c2", approved: false });
+    router.receive({ type: "chat-stop" });
+    router.receive({ type: "chat-new" });
+    expect(chatCalls).toEqual(["send run the tests", "approval c1 true", "approval c2 false", "stop", "reset"]);
+  });
+
+  it("counts anything but a plain yes as a no", () => {
+    const { router, chatCalls } = setup();
+    router.receive({ type: "chat-approval", id: "c1", approved: "yes" as unknown as boolean });
+    expect(chatCalls).toEqual(["approval c1 false"]);
+  });
+
+  it("runs the commands the page may ask for, and refuses all others", () => {
+    const { router, pageCommands, log } = setup();
+    router.receive({ type: "chat-command", command: "terax.ai.setApiKey" });
+    router.receive({ type: "chat-command", command: "workbench.action.terminal.new" as unknown as PageCommand });
+    expect(pageCommands).toEqual(["terax.ai.setApiKey"]);
+    expect(log).toHaveBeenCalledWith("warn", expect.stringContaining("workbench.action.terminal.new"));
+  });
+
+  it("tells the page when the model changes, once it is up", () => {
+    const { router, posted } = setup();
+    router.modelChanged();
+    expect(ofType(posted, "chat-model")).toEqual([]);
+    router.receive({ type: "ready" });
+    router.modelChanged();
+    expect(ofType(posted, "chat-model")).toEqual([{ type: "chat-model", model: "OpenAI · GPT" }]);
+  });
+
+  it("asks the page for the terminal's text and hands the answer to the agent", async () => {
+    const { router, posted } = setup();
+    router.receive({ type: "ready" });
+    const text = router.readTerminalText(40);
+    const [request] = ofType(posted, "terminal-text-request");
+    expect(request.lines).toBe(40);
+    router.receive({ type: "terminal-text", requestId: request.requestId, text: "$ npm test\nFAIL" });
+    await expect(text).resolves.toBe("$ npm test\nFAIL");
+  });
+
+  it("gives an empty answer when there is no page, or the page does not reply", async () => {
+    vi.useFakeTimers();
+    try {
+      const { router, posted } = setup();
+      await expect(router.readTerminalText(10)).resolves.toBe("");
+      router.receive({ type: "ready" });
+      const text = router.readTerminalText(10);
+      expect(ofType(posted, "terminal-text-request")).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(3500);
+      await expect(text).resolves.toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("answers a waiting request when the page goes away", async () => {
+    const { router } = setup();
+    router.receive({ type: "ready" });
+    const text = router.readTerminalText(10);
+    router.pageClosed();
+    await expect(text).resolves.toBe("");
+  });
+
+  it("holds a chat focus or prefill until the page is up", () => {
+    const { router, posted } = setup();
+    router.send({ type: "chat-prefill", text: "explain this" });
+    router.send({ type: "chat-focus" });
+    expect(ofType(posted, "chat-prefill")).toEqual([]);
+    router.receive({ type: "ready" });
+    const order = posted.map((m) => m.type).filter((t) => t === "chat-sync" || t === "chat-prefill" || t === "chat-focus");
+    expect(order).toEqual(["chat-sync", "chat-prefill", "chat-focus"]);
+  });
+
+  it("sends a chat focus straight away when the page is up", () => {
+    const { router, posted } = setup();
+    router.receive({ type: "ready" });
+    router.send({ type: "chat-focus" });
+    expect(ofType(posted, "chat-focus")).toHaveLength(1);
+  });
+});
+
+describe("terminal ids across pages", () => {
+  it("starts each new page above every id an earlier page used", () => {
+    const { router, posted } = setup();
+    router.receive({ type: "ready" });
+    router.receive({ type: "spawn", id: 1, cols: 80, rows: 24 });
+    router.receive({ type: "spawn", id: 2, cols: 80, rows: 24 });
+    router.receive({ type: "ready" });
+    router.receive({ type: "spawn", id: 3, cols: 80, rows: 24 });
+    router.receive({ type: "ready" });
+    expect(ofType(posted, "init").map((m) => m.firstId)).toEqual([1, 3, 4]);
   });
 });

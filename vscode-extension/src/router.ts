@@ -1,3 +1,4 @@
+import { type ChatEvent, isPageCommand, type PageCommand } from "../shared/chat";
 import {
   type HostMessage,
   isOpenableLink,
@@ -35,6 +36,17 @@ export interface HelperPort {
   killAll(): void;
 }
 
+/** What the router needs from the AI chat. The chat lives in the host and outlives the page. */
+export interface ChatPort {
+  readonly events: ChatEvent[];
+  readonly running: boolean;
+  readonly modelLabel: string;
+  send(text: string): Promise<void>;
+  stop(): void;
+  reset(): void;
+  answerApproval(id: string, approved: boolean): void;
+}
+
 export type LaunchPlan = { file: string; args: string[]; cwd: string; env: Record<string, string>; title: string };
 
 export type RouterDeps = {
@@ -48,7 +60,13 @@ export type RouterDeps = {
   clipboard: { read(): Promise<string>; write(text: string): Promise<void> };
   openLink(uri: string): void;
   log(level: "info" | "warn" | "error", message: string): void;
+  chat: ChatPort;
+  /** Runs one of the few commands the chat page may ask for (set the key, choose the model, ...). */
+  runPageCommand(command: PageCommand): void;
 };
+
+/** How long the agent waits for the page to hand over the terminal's text. */
+const TERMINAL_TEXT_TIMEOUT_MS = 3000;
 
 /**
  * Sits between the page and the helper: starts shells when the page asks, carries their input and
@@ -60,8 +78,14 @@ export class SessionRouter {
   private readonly titles = new Map<number, string>();
   private ready = false;
   private firstCwd: string | undefined;
+  /** The highest terminal id any page has used, so each new page can start above it. */
+  private highestId = 0;
   private focusWhenReady = false;
+  private chatFocusWhenReady = false;
+  private prefillWhenReady: string | undefined;
   private focused = false;
+  private nextRequest = 1;
+  private readonly terminalTextRequests = new Map<number, (text: string) => void>();
 
   constructor(private readonly deps: RouterDeps) {
     this.flow = new FlowControl({
@@ -112,15 +136,22 @@ export class SessionRouter {
           settings: this.deps.terminalSettings(),
           isMac: this.deps.isMac,
           cwd: this.firstCwd,
+          firstId: this.highestId + 1,
         });
+        this.syncChat();
         this.firstCwd = undefined;
         if (this.focusWhenReady) this.deps.post({ type: "focus" });
         this.focusWhenReady = false;
+        if (this.prefillWhenReady !== undefined) this.deps.post({ type: "chat-prefill", text: this.prefillWhenReady });
+        this.prefillWhenReady = undefined;
+        if (this.chatFocusWhenReady) this.deps.post({ type: "chat-focus" });
+        this.chatFocusWhenReady = false;
         break;
       case "focus-state":
         this.focused = message.focused;
         break;
       case "spawn": {
+        this.highestId = Math.max(this.highestId, message.id);
         try {
           const plan = this.deps.launch(message.cwd);
           this.titles.set(message.id, plan.title);
@@ -171,7 +202,56 @@ export class SessionRouter {
       case "log":
         this.deps.log(message.level, message.message);
         break;
+      case "chat-send":
+        void this.deps.chat.send(message.text);
+        break;
+      case "chat-stop":
+        this.deps.chat.stop();
+        break;
+      case "chat-new":
+        this.deps.chat.reset();
+        break;
+      case "chat-approval":
+        this.deps.chat.answerApproval(message.id, message.approved === true);
+        break;
+      case "chat-command":
+        // The page is only a web page: it may ask for the few commands on the list, nothing else.
+        if (isPageCommand(message.command)) this.deps.runPageCommand(message.command);
+        else this.deps.log("warn", `refused a command from the chat page: ${String(message.command).slice(0, 80)}`);
+        break;
+      case "terminal-text":
+        this.terminalTextRequests.get(message.requestId)?.(message.text);
+        this.terminalTextRequests.delete(message.requestId);
+        break;
     }
+  }
+
+  /** Brings a page that has just started up to date with the conversation. */
+  syncChat(): void {
+    const { chat } = this.deps;
+    this.deps.post({ type: "chat-sync", events: [...chat.events], model: chat.modelLabel, running: chat.running });
+  }
+
+  /** The chosen model changed. */
+  modelChanged(): void {
+    if (this.ready) this.deps.post({ type: "chat-model", model: this.deps.chat.modelLabel });
+  }
+
+  /** The last lines of the active terminal, as the page shows them. Empty when there is no page. */
+  readTerminalText(lines: number): Promise<string> {
+    if (!this.ready) return Promise.resolve("");
+    return new Promise((resolve) => {
+      const requestId = this.nextRequest++;
+      const timer = setTimeout(() => {
+        this.terminalTextRequests.delete(requestId);
+        resolve("");
+      }, TERMINAL_TEXT_TIMEOUT_MS);
+      this.terminalTextRequests.set(requestId, (text) => {
+        clearTimeout(timer);
+        resolve(text);
+      });
+      this.deps.post({ type: "terminal-text-request", requestId, lines });
+    });
   }
 
   /** Asks the page for a new terminal. Before the page is up, the folder is used for its first one. */
@@ -187,10 +267,17 @@ export class SessionRouter {
     if (this.ready) this.deps.post({ type: "settings", settings: this.deps.terminalSettings() });
   }
 
-  send(message: Extract<HostMessage, { type: "kill-active" | "focus" | "clear" | "send-text" }>): void {
+  send(
+    message: Extract<
+      HostMessage,
+      { type: "kill-active" | "focus" | "clear" | "send-text" | "chat-focus" | "chat-prefill" }
+    >,
+  ): void {
     if (this.ready) this.deps.post(message);
     // A page that is still starting gets the focus once it is up; the other commands need a terminal.
     else if (message.type === "focus") this.focusWhenReady = true;
+    else if (message.type === "chat-focus") this.chatFocusWhenReady = true;
+    else if (message.type === "chat-prefill") this.prefillWhenReady = message.text;
   }
 
   /** The page went away: its shells have nobody to talk to. */
@@ -200,5 +287,7 @@ export class SessionRouter {
     this.deps.helper.killAll();
     this.flow.clear();
     this.titles.clear();
+    for (const answer of this.terminalTextRequests.values()) answer("");
+    this.terminalTextRequests.clear();
   }
 }

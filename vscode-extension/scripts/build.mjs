@@ -40,6 +40,7 @@ if (!existsSync(join(extensionRoot, "node_modules", "@types", "vscode"))) {
   run("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], extensionRoot);
 }
 run("pnpm", ["exec", "tsc", "-p", "vscode-extension/tsconfig.host.json"], repoRoot);
+run("pnpm", ["exec", "vite", "build", "-c", "vscode-extension/host.vite.config.mts"], repoRoot);
 
 if (args.has("--skip-helper")) {
   console.log("• helper skipped");

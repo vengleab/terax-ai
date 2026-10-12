@@ -14,6 +14,17 @@ code-server --bind-addr 127.0.0.1:8090 --auth none --disable-workspace-trust \
 TERAX_E2E_WORKSPACE=/tmp/e2e/work PLAYWRIGHT_NODE_MODULES=/path/to/node_modules node vscode-extension/e2e/run.mjs /tmp/e2e/shots
 ```
 
+`chat.mjs` tests the AI chat the same way, against a scripted fake OpenAI-compatible server (`fake-openai.mjs`), so no
+provider or key is needed. It also needs the code-server's user settings file, which it overwrites (before the page
+loads) to point the chat at the fake server, and deletes `Machine/settings.json` next to its `User` folder: the chat's
+provider, model and address are machine-scoped settings, and choosing a model through the palette (which the test does)
+stores it there, where it would win over the file on the next run. The code-server must be started with that user data folder:
+
+```sh
+TERAX_E2E_WORKSPACE=/tmp/e2e/work TERAX_E2E_SETTINGS=/tmp/e2e/ud/User/settings.json \
+  PLAYWRIGHT_NODE_MODULES=/path/to/node_modules node vscode-extension/e2e/chat.mjs /tmp/e2e/shots
+```
+
 It needs `playwright` with a Chromium (`CHROMIUM_PATH` if Playwright's own is not installed) and Linux or macOS, because
 the checks use `stty`, `less` and files in `/tmp`.
 

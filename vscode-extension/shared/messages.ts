@@ -3,6 +3,8 @@
  * Both sides import this file, so the two can not drift apart without a type error.
  */
 
+import type { ChatEvent, PageCommand } from "./chat";
+
 export type CursorStyle = "block" | "underline" | "bar";
 
 export type TerminalSettings = {
@@ -27,6 +29,11 @@ export type HostMessage =
       isMac: boolean;
       /** Where the first terminal starts, when it was asked for with a folder. */
       cwd?: string;
+      /**
+       * The first terminal id this page may use. Ids never repeat across pages, so a shell that was ended
+       * for an earlier page can not have its late "exit" mistaken for one of this page's terminals.
+       */
+      firstId: number;
     }
   | { type: "settings"; settings: TerminalSettings }
   /** The user asked for a new terminal (command, button or keybinding). */
@@ -39,7 +46,15 @@ export type HostMessage =
   | { type: "focus" }
   | { type: "clear" }
   | { type: "send-text"; text: string }
-  | { type: "clipboard-text"; requestId: number; text: string };
+  | { type: "clipboard-text"; requestId: number; text: string }
+  /** One event of the AI chat. */
+  | { type: "chat"; event: ChatEvent }
+  /** The whole conversation so far, for a page that has just started. */
+  | { type: "chat-sync"; events: ChatEvent[]; model: string; running: boolean }
+  | { type: "chat-model"; model: string }
+  | { type: "chat-prefill"; text: string }
+  | { type: "chat-focus" }
+  | { type: "terminal-text-request"; requestId: number; lines: number };
 
 export type WebviewMessage =
   | { type: "ready" }
@@ -54,7 +69,13 @@ export type WebviewMessage =
   | { type: "clipboard-read"; requestId: number }
   | { type: "clipboard-write"; text: string }
   | { type: "open-link"; uri: string }
-  | { type: "log"; level: "info" | "warn" | "error"; message: string };
+  | { type: "log"; level: "info" | "warn" | "error"; message: string }
+  | { type: "chat-send"; text: string }
+  | { type: "chat-stop" }
+  | { type: "chat-new" }
+  | { type: "chat-approval"; id: string; approved: boolean }
+  | { type: "chat-command"; command: PageCommand }
+  | { type: "terminal-text"; requestId: number; text: string };
 
 export const VIEW_ID = "terax.terminalView";
 

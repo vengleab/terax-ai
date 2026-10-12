@@ -29,8 +29,13 @@ export function buildHtml({ nonce, cspSource, scriptUri, styleUri }: HtmlParts):
 </head>
 <body>
 <div id="app">
+<div id="terminal-pane">
 <div id="tabs" role="tablist"></div>
 <div id="stage"></div>
+</div>
+<div id="splitter" role="separator" aria-orientation="horizontal" aria-label="Resize the chat" aria-valuemin="120" aria-valuenow="0" tabindex="0"></div>
+<section id="chat" aria-label="Terax AI chat"></section>
+<div id="approvals"></div>
 </div>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

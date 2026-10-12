@@ -24,6 +24,7 @@ describe("buildHtml", () => {
   it("has the elements the page's script looks for", () => {
     expect(html).toContain('id="tabs"');
     expect(html).toContain('id="stage"');
+    for (const id of ["terminal-pane", "splitter", "chat", "approvals"]) expect(html).toContain(`id="${id}"`);
     expect(html).toContain('href="https://x/index.css"');
   });
 });
