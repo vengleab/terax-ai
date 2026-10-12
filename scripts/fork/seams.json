@@ -20,7 +20,8 @@
     "src/modules/ai/providers/requestBody.ts",
     "src/modules/launch-folders/",
     "src-tauri/crates/tauri-plugin-terax-launch/",
-    "src-tauri/capabilities/launch-folders.json"
+    "src-tauri/capabilities/launch-folders.json",
+    "vscode-extension/"
   ],
   "seams": [
     {

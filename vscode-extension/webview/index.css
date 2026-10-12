@@ -1,0 +1,153 @@
+/* Terax's terminal colours come from the VS Code theme. The engine reads --terminal-* variables. */
+:root {
+  --terminal-background: var(--vscode-terminal-background, var(--vscode-panel-background, #1e1e1e));
+  --terminal-foreground: var(--vscode-terminal-foreground, var(--vscode-foreground, #cccccc));
+  --terminal-cursor: var(--vscode-terminalCursor-foreground, var(--terminal-foreground));
+  --terminal-cursor-accent: var(--vscode-terminalCursor-background, var(--terminal-background));
+  --terminal-selection: var(--vscode-terminal-selectionBackground, rgba(128, 128, 128, 0.4));
+  --terminal-ansi-black: var(--vscode-terminal-ansiBlack, #000000);
+  --terminal-ansi-red: var(--vscode-terminal-ansiRed, #cd3131);
+  --terminal-ansi-green: var(--vscode-terminal-ansiGreen, #0dbc79);
+  --terminal-ansi-yellow: var(--vscode-terminal-ansiYellow, #e5e510);
+  --terminal-ansi-blue: var(--vscode-terminal-ansiBlue, #2472c8);
+  --terminal-ansi-magenta: var(--vscode-terminal-ansiMagenta, #bc3fbc);
+  --terminal-ansi-cyan: var(--vscode-terminal-ansiCyan, #11a8cd);
+  --terminal-ansi-white: var(--vscode-terminal-ansiWhite, #e5e5e5);
+  --terminal-ansi-bright-black: var(--vscode-terminal-ansiBrightBlack, #666666);
+  --terminal-ansi-bright-red: var(--vscode-terminal-ansiBrightRed, #f14c4c);
+  --terminal-ansi-bright-green: var(--vscode-terminal-ansiBrightGreen, #23d18b);
+  --terminal-ansi-bright-yellow: var(--vscode-terminal-ansiBrightYellow, #f5f543);
+  --terminal-ansi-bright-blue: var(--vscode-terminal-ansiBrightBlue, #3b8eea);
+  --terminal-ansi-bright-magenta: var(--vscode-terminal-ansiBrightMagenta, #d670d6);
+  --terminal-ansi-bright-cyan: var(--vscode-terminal-ansiBrightCyan, #29b8db);
+  --terminal-ansi-bright-white: var(--vscode-terminal-ansiBrightWhite, #e5e5e5);
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--terminal-background);
+  color: var(--terminal-foreground);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#tabs {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  height: 26px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-panel-background, transparent));
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  font: 12px var(--vscode-font-family, sans-serif);
+  scrollbar-width: none;
+}
+
+.tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-width: 200px;
+  color: var(--vscode-tab-inactiveForeground, var(--vscode-foreground));
+  background: var(--vscode-tab-inactiveBackground, transparent);
+  border-right: 1px solid var(--vscode-tab-border, transparent);
+}
+
+.tab.active {
+  color: var(--vscode-tab-activeForeground, var(--vscode-foreground));
+  background: var(--vscode-tab-activeBackground, var(--terminal-background));
+  box-shadow: inset 0 -1px 0 var(--vscode-tab-activeBorderTop, var(--vscode-focusBorder, currentColor));
+}
+
+.tab.exited .tab-label {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.tab button,
+.tab-add {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.tab-label {
+  overflow: hidden;
+  padding: 0 4px 0 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  padding: 0 8px 0 2px;
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab.active .tab-close,
+.tab-close:focus-visible {
+  opacity: 0.8;
+}
+
+.tab-close:hover {
+  opacity: 1;
+}
+
+.tab-add {
+  padding: 0 10px;
+  font-size: 15px;
+  color: var(--vscode-foreground);
+}
+
+.tab button:focus-visible,
+.tab-add:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The engine's surface fills this box, so the left margin is the box's own inset. */
+.terminal-host {
+  position: absolute;
+  inset: 0 0 0 10px;
+}
+
+.terminal-host[hidden] {
+  display: none;
+}
+
+.terminal-host.failed {
+  padding: 12px;
+  color: var(--vscode-errorForeground, #f48771);
+  font: 12px var(--vscode-font-family, sans-serif);
+}
+
+/* Classes the engine puts on its elements, which the Terax app gets from Tailwind. */
+.absolute {
+  position: absolute;
+}
+.inset-0 {
+  inset: 0;
+}
+.overflow-hidden {
+  overflow: hidden;
+}
+.block {
+  display: block;
+}

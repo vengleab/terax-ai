@@ -1,0 +1,25 @@
+[package]
+name = "terax-vscode-pty"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Runs shells in pseudo-terminals for the Terax VS Code extension, over a framed stdin/stdout protocol"
+
+# A workspace of its own: the helper ships inside the extension and must not touch the app's
+# Cargo.toml or Cargo.lock.
+[workspace]
+
+[dependencies]
+portable-pty = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

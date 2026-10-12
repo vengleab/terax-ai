@@ -1,0 +1,193 @@
+{
+  "name": "terax-terminal",
+  "displayName": "Terax Terminal",
+  "description": "A terminal panel for VS Code drawn by Terax's own terminal engine.",
+  "version": "0.1.0",
+  "publisher": "terax-fork",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/host/src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "terax",
+          "title": "Terax",
+          "icon": "media/terax.svg"
+        }
+      ]
+    },
+    "views": {
+      "terax": [
+        {
+          "type": "webview",
+          "id": "terax.terminalView",
+          "name": "Terminal"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "terax.terminal.focus",
+        "title": "Focus Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.toggle",
+        "title": "Toggle Terminal Panel",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.new",
+        "title": "New Terminal",
+        "category": "Terax",
+        "icon": "$(add)"
+      },
+      {
+        "command": "terax.terminal.newInFolder",
+        "title": "Open in Terax Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.kill",
+        "title": "Kill Terminal",
+        "category": "Terax",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "terax.terminal.clear",
+        "title": "Clear Terminal",
+        "category": "Terax",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "terax.terminal.sendText",
+        "title": "Send Text to Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.runSelection",
+        "title": "Run Selected Text in Terax Terminal",
+        "category": "Terax"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "terax.terminal.new",
+          "when": "view == terax.terminalView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "terax.terminal.clear",
+          "when": "view == terax.terminalView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "terax.terminal.kill",
+          "when": "view == terax.terminalView",
+          "group": "navigation@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "terax.terminal.runSelection",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@99"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "terax.terminal.newInFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@40"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "terax.terminal.toggle",
+        "key": "ctrl+`",
+        "mac": "ctrl+`",
+        "when": "terax.takeOverShortcuts"
+      },
+      {
+        "command": "terax.terminal.new",
+        "key": "ctrl+shift+`",
+        "mac": "ctrl+shift+`",
+        "when": "terax.takeOverShortcuts"
+      }
+    ],
+    "configuration": {
+      "title": "Terax Terminal",
+      "properties": {
+        "terax.shell": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The shell to run. Empty uses your default terminal profile (`terminal.integrated.defaultProfile.*`), then `$SHELL` (`COMSPEC` on Windows)."
+        },
+        "terax.shellArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Arguments for the shell. Empty uses `-l` for zsh, bash and fish on macOS, as VS Code's own terminal does."
+        },
+        "terax.cwd": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where new terminals start. Empty uses the first workspace folder, then your home folder."
+        },
+        "terax.env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "markdownDescription": "Extra environment variables for new terminals."
+        },
+        "terax.takeOverShortcuts": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Make Ctrl+` open the Terax panel instead of VS Code's terminal, and Ctrl+Shift+` open a new Terax terminal."
+        },
+        "terax.skipShellKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "f1",
+            "ctrl+shift+p",
+            "ctrl+`",
+            "ctrl+shift+`",
+            "ctrl+tab",
+            "ctrl+shift+tab",
+            "ctrl+pageup",
+            "ctrl+pagedown"
+          ],
+          "markdownDescription": "Keys VS Code keeps for itself while the Terax terminal has focus, such as `ctrl+shift+p`. Every other key goes to the shell. This is a list of keys because the terminal cannot ask VS Code which commands they are bound to. On macOS, Cmd shortcuts always go to VS Code."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.90.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vengleab/terax-ai"
+  },
+  "homepage": "https://github.com/vengleab/terax-ai/blob/main/docs/fork/vscode-extension.md"
+}
