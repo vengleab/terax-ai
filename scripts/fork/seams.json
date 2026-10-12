@@ -3,7 +3,8 @@
     "fork:ssh-transfer",
     "fork:github-copilot",
     "fork:lazy-keys",
-    "fork:google-vertex"
+    "fork:google-vertex",
+    "fork:launch-folders"
   ],
   "ownedPrefixes": [
     "FORK.md",
@@ -16,7 +17,10 @@
     "src-tauri/capabilities/ssh-transfer.json",
     "src/modules/ai/providers/github-copilot/",
     "src/modules/ai/providers/google-vertex/",
-    "src/modules/ai/providers/requestBody.ts"
+    "src/modules/ai/providers/requestBody.ts",
+    "src/modules/launch-folders/",
+    "src-tauri/crates/tauri-plugin-terax-launch/",
+    "src-tauri/capabilities/launch-folders.json"
   ],
   "seams": [
     {
@@ -170,6 +174,24 @@
       "min": 2,
       "max": 2,
       "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src-tauri/Cargo.toml",
+      "marker": "fork:launch-folders",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src-tauri/src/lib.rs",
+      "marker": "fork:launch-folders",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/app/App.tsx",
+      "marker": "fork:launch-folders",
+      "min": 2,
+      "max": 2
     }
   ],
   "budgets": [

@@ -72,6 +72,7 @@ import {
   useSpaces,
   useSpacesBoot,
 } from "@/modules/spaces";
+import { useLaunchFolders } from "@/modules/launch-folders"; // fork:launch-folders
 // fork:ssh-transfer
 import { SshSidebar, useSshTransfer } from "@/modules/ssh-transfer";
 import { StatusBar } from "@/modules/statusbar";
@@ -652,6 +653,8 @@ export default function App() {
     newAgentTab,
     getCwd: inheritedCwdForNewTab,
   });
+
+  useLaunchFolders({ ready: booted, openFolder: newTab }); // fork:launch-folders
 
   const sendCd = useCallback(
     (path: string) => {

@@ -1,0 +1,3 @@
+[default]
+description = "Lets the main window collect folders the OS asked Terax to open"
+permissions = ["allow-take-pending-folders"]

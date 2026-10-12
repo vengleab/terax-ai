@@ -5,7 +5,7 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 ## Rules
 
 1. New code goes in new files and directories owned by the fork (listed below). Upstream files are edited only at registered seams.
-2. A seam is a small hunk (usually one to five lines) in an upstream file that delegates into fork-owned code. Every seam carries its feature's marker in a comment (`fork:ssh-transfer`, `fork:github-copilot`, `fork:lazy-keys`, `fork:google-vertex`), so it can be found with `git grep fork:`.
+2. A seam is a small hunk (usually one to five lines) in an upstream file that delegates into fork-owned code. Every seam carries its feature's marker in a comment (`fork:ssh-transfer`, `fork:github-copilot`, `fork:lazy-keys`, `fork:google-vertex`, `fork:launch-folders`), so it can be found with `git grep fork:`.
 3. Every seam is registered in `scripts/fork/seams.json` with the file, its marker (default: the first listed in `markers`) and the exact marker count. `node scripts/fork/check-seams.mjs` fails if a registered seam disappears (for example after a bad merge) or if an unregistered marker shows up.
 4. No new npm dependencies. New Rust dependencies live in the fork crates, never in the root `src-tauri/Cargo.toml`.
 5. Do not edit `TERAX.md`, `docs/README.md`, `.github/workflows/ci.yml`, `package.json` or `pnpm-lock.yaml`. The one exception is `.size-limit.json` (see Size budget). Fork docs live in `FORK.md` and `docs/fork/`; fork CI lives in `.github/workflows/fork-ci.yml`.
@@ -22,6 +22,7 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 | `src/modules/ai/providers/github-copilot/` | GitHub Copilot AI provider (see `docs/fork/github-copilot.md`) |
 | `src/modules/ai/providers/google-vertex/`, `providers/requestBody.ts` | Google Vertex AI provider with service account auth; the user picks the key file and Terax reads it from disk, no keychain (see `docs/fork/google-vertex.md`) |
 | `src/modules/ai/lib/lazyKeys.ts` (and its tests) | Reads API keys from the OS secret store only when used, not at launch; also serves "external" key slots such as Vertex's key file path (see `docs/fork/lazy-keys.md`) |
+| `src-tauri/crates/tauri-plugin-terax-launch/`, `src-tauri/capabilities/launch-folders.json`, `src/modules/launch-folders/` | Lets Terax be VS Code's external terminal: folders handed over by macOS `open -a Terax <folder>` open a terminal tab (see `docs/fork/vscode-terminal.md`) |
 | `docs/fork/` | Fork docs, start at `docs/fork/ssh-transfer.md` |
 | `scripts/fork/` | Sync and seam tooling |
 | `.github/workflows/fork-ci.yml` | Fork CI |
@@ -41,8 +42,9 @@ The authoritative list is `scripts/fork/seams.json`. Summary:
 | `src/modules/ai/config.ts`, `lib/agent.ts`, `lib/keyring.ts`, `src/settings/components/ProviderIcon.tsx`, `src/modules/ai/components/AiStatusBarControls.tsx`, `src/settings/sections/ModelsSection.tsx` | `fork:github-copilot`: provider id, registry spreads, one `case`, key slot, icon entries, one settings card branch |
 | `src/modules/ai/config.ts`, `lib/agent.ts`, `lib/keyring.ts`, `src/settings/components/ProviderIcon.tsx`, `src/modules/ai/components/AiStatusBarControls.tsx`, `src/settings/sections/ModelsSection.tsx` | `fork:google-vertex`: the same shape as the Copilot seams (provider id, registry spreads, one `case`, key slot, icon entries, one settings card branch) |
 | `src/modules/ai/lib/keyring.ts`, `lib/agent.ts`, `lib/stt.ts`, `src/settings/components/ProviderKeyCard.tsx`, `src/settings/sections/ModelsSection.tsx` | `fork:lazy-keys`: the `invoke` import in `keyring.ts`, key resolution before models and voice input use a key, and the "Saved in your keychain" label |
+| `src-tauri/Cargo.toml`, `src-tauri/src/lib.rs`, `src/app/App.tsx` | `fork:launch-folders`: one path dependency, one `.plugin(...)` call, and in `App.tsx` the import and one hook call |
 | `.size-limit.json` | Total client JS limit raised from 1505 KB to 1560 KB (guarded by `budgets`, see Size budget) |
-| `src/app/App.tsx` | Seven small hunks: import, `useSshTransfer` call, palette items, sidebar branch (also swaps in the remote Explorer), tab surface layer, overlays |
+| `src/app/App.tsx` | `fork:ssh-transfer`, seven small hunks: import, `useSshTransfer` call, palette items, sidebar branch (also swaps in the remote Explorer), tab surface layer, overlays |
 | `src/modules/terminal/ghostty/useGhosttyTerminalSession.ts` | One line: forwards terminal title changes as a `window` event, which the fork uses to follow the server's folder |
 
 ### Size budget
@@ -85,4 +87,5 @@ Upstream's Dependabot config groups all cargo updates. The fork crates pin `russ
 - `docs/fork/github-copilot.md`: the GitHub Copilot AI provider
 - `docs/fork/lazy-keys.md`: lazy API key reads (no secret-store reads at launch)
 - `docs/fork/google-vertex.md`: the Google Vertex AI provider (service account key file, no keychain)
+- `docs/fork/vscode-terminal.md`: using Terax as VS Code's external terminal
 - `docs/fork/ssh-transfer.md`: the SSH File Transfer feature

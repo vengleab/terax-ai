@@ -5857,6 +5857,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-terax-launch"
+version = "0.9.0-beta"
+dependencies = [
+ "log",
+ "tauri",
+ "tauri-plugin",
+ "tempfile",
+ "url",
+]
+
+[[package]]
 name = "tauri-plugin-terax-ssh"
 version = "0.9.0-beta"
 dependencies = [
@@ -6091,6 +6102,7 @@ dependencies = [
  "tauri-plugin-os",
  "tauri-plugin-process",
  "tauri-plugin-store",
+ "tauri-plugin-terax-launch",
  "tauri-plugin-terax-ssh",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",

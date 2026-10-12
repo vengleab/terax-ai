@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "launch-folders",
+  "description": "Lets the main window collect folders the OS asked Terax to open",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "terax-launch:default"
+  ]
+}
