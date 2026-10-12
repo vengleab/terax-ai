@@ -3,7 +3,7 @@
 //   node scripts/build.mjs [--skip-helper] [--release]
 //
 // Run from anywhere. The webview bundle uses the app's Vite, so `pnpm install` must have been run at
-// the repository root first.
+// the repository root first. The extension's own dependency (@types/vscode) is installed here if missing.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -34,6 +34,11 @@ for (const name of ["ghostty-vt.wasm", "ghostty-vt-scalar.wasm"]) {
 }
 
 console.log("• extension host");
+// The host is type-checked against VS Code's API definitions, which are this package's only dependency.
+if (!existsSync(join(extensionRoot, "node_modules", "@types", "vscode"))) {
+  console.log("  installing @types/vscode");
+  run("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], extensionRoot);
+}
 run("pnpm", ["exec", "tsc", "-p", "vscode-extension/tsconfig.host.json"], repoRoot);
 
 if (args.has("--skip-helper")) {

@@ -37,10 +37,9 @@ Keys go to the shell, because that is what a terminal is for: Ctrl+R, Ctrl+B, Ct
 ## Install and settings
 
 ```sh
-pnpm install                       # at the repository root
-cd vscode-extension && npm ci      # type definitions for the extension host
-node scripts/package.mjs           # builds everything and writes terax-terminal-<system>-0.1.0.vsix
-code --install-extension terax-terminal-<system>-0.1.0.vsix
+pnpm install                                # at the repository root
+node vscode-extension/scripts/package.mjs   # builds everything and writes vscode-extension/terax-terminal-<system>-0.1.0.vsix
+code --install-extension vscode-extension/terax-terminal-<system>-0.1.0.vsix
 ```
 
 `vscode-extension/package.json` (the extension's own, outside the app's pnpm workspace) lists the settings: `terax.shell`, `terax.shellArgs`, `terax.cwd`, `terax.env`, `terax.takeOverShortcuts`, `terax.skipShellKeys`. A shell is chosen from `terax.shell`, then the default terminal profile of VS Code, then `$SHELL` (PowerShell, then `COMSPEC` on Windows). The environment is the extension host's with `ELECTRON_*` and VS Code's internal variables removed, so an Electron app started from the terminal does not run as plain Node; `VSCODE_IPC_HOOK_CLI` is kept so `code file.txt` works.

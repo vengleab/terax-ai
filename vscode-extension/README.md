@@ -27,8 +27,7 @@ See `docs/fork/vscode-extension.md` in the repository for what works, what was t
 ## Building
 
 ```sh
-pnpm install                      # at the repository root
-cd vscode-extension && npm ci     # @types/vscode, for type-checking the extension host
-node scripts/build.mjs            # webview, extension host and helper into dist/
-node scripts/package.mjs          # a .vsix for this system, with the helper included
+pnpm install                          # at the repository root
+node vscode-extension/scripts/build.mjs    # webview, extension host and helper into dist/
+node vscode-extension/scripts/package.mjs  # a .vsix for this system, with the helper included
 ```
