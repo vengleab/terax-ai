@@ -14,7 +14,8 @@ It adds a **Terax** tab to the bottom panel, next to Problems, Output and Termin
 - **An AI chat below the terminal.** Ask about an error, a file or the project. The agent reads your files and
   terminal on its own and **a popup asks before it runs a command or changes a file**. Uses **GitHub Copilot**
   through VS Code (needs VS Code 1.95+ and the Copilot Chat extension; no key), or bring your own key (OpenAI,
-  Anthropic, Google, xAI, Groq, OpenRouter, and others), or use a local model (Ollama, LM Studio).
+  Anthropic, Google, xAI, Groq, OpenRouter, and others), or **Google Vertex AI** with a service account key
+  file, or use a local model (Ollama, LM Studio).
   Start with **Terax: Select AI Model**. Details, limits and what was tested: `docs/fork/vscode-ai-chat.md`.
 
 It does not replace VS Code's integrated terminal: tasks, debug sessions and other extensions keep using that.
@@ -33,6 +34,11 @@ See `docs/fork/vscode-extension.md` in the repository for what works, what was t
 | `terax.ai.maxSteps`, `terax.ai.commandTimeoutSeconds` | The most steps for one message; how long a command the agent runs may take. |
 
 The API key is not a setting: **Terax: Set AI API Key** keeps it in VS Code's secret storage. GitHub Copilot needs none.
+
+| Setting (Google Vertex AI) | |
+|---|---|
+| `terax.ai.vertex.keyFile` | The path of the service account `.json` file. **Terax: Choose Google Service Account Key File** sets it. The file is read from where it is and never copied. |
+| `terax.ai.vertex.location`, `terax.ai.vertex.project` | `global` or a region; a project to bill instead of the key's own. |
 
 ## Building
 

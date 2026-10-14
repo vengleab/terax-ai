@@ -31,6 +31,13 @@ describe("createModel for VS Code's own models", () => {
   });
 });
 
+describe("createModel for Google Vertex AI", () => {
+  it("asks for the key file when none is chosen, and says where", async () => {
+    const error = await failure({ ...base, provider: "google-vertex", vertex: { keyFile: "", location: "global", project: "" } }, undefined);
+    expect(error.hint).toBe("choose-key-file");
+  });
+});
+
 describe("createModel", () => {
   it("builds a hosted model from the provider's first model when none is chosen", async () => {
     const model = (await createModel(base, "sk-test")) as { modelId: string; provider: string };

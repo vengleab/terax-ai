@@ -139,6 +139,7 @@ const HINT_ACTIONS: Record<string, { label: string; command: PageCommand }> = {
   "set-key": { label: "Set API key", command: "terax.ai.setApiKey" },
   "select-model": { label: "Select model", command: "terax.ai.selectModel" },
   "open-settings": { label: "Open settings", command: "terax.ai.openSettings" },
+  "choose-key-file": { label: "Choose key file", command: "terax.ai.chooseKeyFile" },
 };
 
 export function renderMessage(message: Message, hooks: RenderHooks): HTMLElement {

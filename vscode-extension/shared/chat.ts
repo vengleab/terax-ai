@@ -23,7 +23,7 @@ export type ApprovalRequest = {
   diffTruncated?: boolean;
 };
 
-export type ChatErrorHint = "set-key" | "select-model" | "open-settings";
+export type ChatErrorHint = "set-key" | "select-model" | "open-settings" | "choose-key-file";
 
 export type ChatEvent =
   | { type: "user"; id: string; text: string }
@@ -40,7 +40,7 @@ export type ChatEvent =
   | { type: "reset" };
 
 /** Commands the page may ask the host to run. Nothing else is accepted from the page. */
-export const PAGE_COMMANDS = ["terax.ai.setApiKey", "terax.ai.selectModel", "terax.ai.openSettings"] as const;
+export const PAGE_COMMANDS = ["terax.ai.setApiKey", "terax.ai.selectModel", "terax.ai.openSettings", "terax.ai.chooseKeyFile"] as const;
 export type PageCommand = (typeof PAGE_COMMANDS)[number];
 
 export function isPageCommand(value: unknown): value is PageCommand {

@@ -2,13 +2,15 @@ import type { LanguageModel } from "ai";
 import type { ChatErrorHint } from "../../shared/chat";
 import { getProvider } from "../../../src/modules/ai/config";
 import { type AiSettings, defaultBaseUrl, effectiveModel, needsApiKey, VSCODE_LM } from "./settings";
+import { createVertexModel } from "./vertex";
 import { createVsCodeLmModel, type LmApi } from "./vscodeLm";
 
 /** Something the person has to fix in their setup, with where to fix it. */
 export class ChatSetupError extends Error {
   constructor(
     message: string,
-    readonly hint: ChatErrorHint,
+    /** Where to fix it, when there is a place for that. */
+    readonly hint?: ChatErrorHint,
   ) {
     super(message);
     this.name = "ChatSetupError";
@@ -78,6 +80,8 @@ export async function createModel(settings: AiSettings, apiKey: string | undefin
       const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
       return createOpenAICompatible({ ...spec, apiKey: key })(modelId);
     }
+    case "google-vertex":
+      return createVertexModel(settings);
     case "openai-compatible":
     case "lmstudio":
     case "mlx":

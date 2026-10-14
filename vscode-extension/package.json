@@ -116,6 +116,16 @@
         "command": "terax.ai.askAboutSelection",
         "title": "Ask Terax AI About Selection",
         "category": "Terax"
+      },
+      {
+        "command": "terax.ai.chooseKeyFile",
+        "title": "Choose Google Service Account Key File",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.clearKeyFile",
+        "title": "Forget Google Service Account Key File",
+        "category": "Terax"
       }
     ],
     "menus": {
@@ -244,7 +254,8 @@
             "openai-compatible",
             "lmstudio",
             "mlx",
-            "ollama"
+            "ollama",
+            "google-vertex"
           ],
           "markdownDescription": "Which service answers in the Terax AI chat. The default, `vscode-lm`, uses GitHub Copilot (or another model) through VS Code, with no key. Use **Terax: Select AI Model** to change it. This can only be set in your user settings, so a project cannot send your prompts and files to a server it chose.",
           "enumDescriptions": [
@@ -261,14 +272,15 @@
             "",
             "",
             "",
-            ""
+            "",
+            "Gemini on Google Cloud Vertex AI, signed in with a service account key file (Terax: Choose Google Service Account Key File)."
           ]
         },
         "terax.ai.model": {
           "type": "string",
           "default": "",
           "scope": "machine",
-          "markdownDescription": "The model's name as the provider calls it. For `vscode-lm` it is `vendor/id` as **Terax: Select AI Model** saves it; empty uses the first GitHub Copilot model. Otherwise empty uses the provider's first model in Terax's list, and local and custom providers need a name here."
+          "markdownDescription": "The model's name as the provider calls it. For `vscode-lm` it is `vendor/id` as **Terax: Select AI Model** saves it; empty uses the first GitHub Copilot model. For `google-vertex`, a Gemini model id such as `gemini-2.5-flash` (the default). Otherwise empty uses the provider's first model in Terax's list, and local and custom providers need a name here."
         },
         "terax.ai.baseUrl": {
           "type": "string",
@@ -289,6 +301,24 @@
           "minimum": 1,
           "maximum": 600,
           "markdownDescription": "How long a command the agent runs may take before it is stopped. The agent can ask for up to 600 seconds for one command."
+        },
+        "terax.ai.vertex.keyFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The Google Cloud **service account key file** (.json) for `google-vertex`. Terax reads it from where it is for every request; it is not copied or stored. Use **Terax: Choose Google Service Account Key File** to pick it. Anyone who can read the file can use the account, so keep it somewhere only you can read."
+        },
+        "terax.ai.vertex.location": {
+          "type": "string",
+          "default": "global",
+          "scope": "machine",
+          "markdownDescription": "Where Vertex AI runs the model: `global`, or a region such as `us-central1` or `europe-west4`."
+        },
+        "terax.ai.vertex.project": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "A Google Cloud project to use instead of the key file's own. Leave empty to use the key file's project."
         }
       }
     }

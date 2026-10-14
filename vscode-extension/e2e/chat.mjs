@@ -97,13 +97,23 @@ frame = await teraxFrame();
 const idle = () => frame.locator(".composer-send").innerText().then((t) => t.trim() === "Send");
 const popup = () => frame.locator(".approval").isVisible();
 const cards = () => frame.locator(".tool").allInnerTexts();
+// VS Code can replace the page's frame (for example when it re-lays out the panel); follow it, and say so.
+async function currentFrame() {
+  if (frame.isDetached()) {
+    console.log("  (the page's frame was replaced; following the new one)");
+    frame = await teraxFrame();
+  }
+  return frame;
+}
 async function say(text, steps) {
+  await currentFrame();
   if (steps) server.script(steps);
   await frame.locator(".composer-input").click();
   await page.keyboard.type(text, { delay: 4 });
   await page.keyboard.press("Enter");
 }
 const settle = async () => {
+  await currentFrame();
   await until(idle, "the turn to end", 20_000);
   await wait(250);
 };
