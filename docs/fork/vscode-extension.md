@@ -2,7 +2,7 @@
 
 `vscode-extension/` is a VS Code extension that adds a **Terax** tab to VS Code's bottom panel. The terminal in it is Terax's own engine (libghostty-vt in WebAssembly with the WebGL renderer, the same code the desktop app uses), not VS Code's.
 
-**New:** below the terminal there is an **AI chat** with a popup that asks before the agent runs a command or changes a file. It can use GitHub Copilot through VS Code. It has its own page: `vscode-ai-chat.md`. (The extension now needs VS Code 1.95 or newer, for the language model API's tools.)
+**New:** below the terminal there is an **AI chat** with a popup that asks before the agent runs a command or changes a file. It can use GitHub Copilot through VS Code. It has its own page: `vscode-ai-chat.md`. (The extension now needs VS Code 1.96 or newer, for the language model API's tools.)
 
 ## What it is, and what it is not
 

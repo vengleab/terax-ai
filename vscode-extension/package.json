@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "private": true,
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.96.0"
   },
   "categories": [
     "Other"
@@ -298,7 +298,7 @@
     "package": "node scripts/package.mjs"
   },
   "devDependencies": {
-    "@types/vscode": "1.95.0"
+    "@types/vscode": "1.96.0"
   },
   "repository": {
     "type": "git",

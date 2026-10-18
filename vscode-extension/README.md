@@ -13,7 +13,7 @@ It adds a **Terax** tab to the bottom panel, next to Problems, Output and Termin
 
 - **An AI chat below the terminal.** Ask about an error, a file or the project. The agent reads your files and
   terminal on its own and **a popup asks before it runs a command or changes a file**. Uses **GitHub Copilot**
-  through VS Code (needs VS Code 1.95+ and the Copilot Chat extension; no key), or bring your own key (OpenAI,
+  through VS Code (needs VS Code 1.96+ and the Copilot Chat extension; no key), or bring your own key (OpenAI,
   Anthropic, Google, xAI, Groq, OpenRouter, and others), or use a local model (Ollama, LM Studio).
   Start with **Terax: Select AI Model**. Details, limits and what was tested: `docs/fork/vscode-ai-chat.md`.
 

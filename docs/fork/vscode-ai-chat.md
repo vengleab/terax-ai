@@ -38,7 +38,7 @@ Providers:
 - OpenAI, Anthropic, Google (Gemini), xAI, Cerebras, Groq, DeepSeek, Mistral, OpenRouter, any OpenAI-compatible server (`terax.ai.baseUrl`), and the local servers LM Studio, MLX and Ollama (no key). These are the same providers, model lists and addresses as in the Terax app.
 - **Not included:** Google Vertex AI (a service account file; it works in the app's Settings). The Terax app's own Copilot sign-in (a device login) is not used here either: inside VS Code the language model API is the supported way and needs no token.
 
-**Why `vscode.lm` and not a Copilot login of Terax's own:** it is the route VS Code offers extensions for exactly this, it uses the subscription and the sign-in you already have, and Terax holds no GitHub token. It needs **VS Code 1.95 or newer** (the version that added tools to the API) and the Copilot Chat extension.
+**Why `vscode.lm` and not a Copilot login of Terax's own:** it is the route VS Code offers extensions for exactly this, it uses the subscription and the sign-in you already have, and Terax holds no GitHub token. It needs **VS Code 1.96 or newer** (the version that added tools to the API) and the Copilot Chat extension.
 
 ## What the agent can do
 
