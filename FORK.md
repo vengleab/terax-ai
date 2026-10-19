@@ -26,7 +26,6 @@ This repository is a fork of `crynta/terax-ai`. This file is the fork's own doc:
 | `vscode-extension/` | A VS Code extension that adds a Terax terminal panel, drawn by Terax's own terminal engine, with an AI chat below it that asks before running commands or changing files. No seams: it touches no upstream file, it only imports Terax's AI modules (see `docs/fork/vscode-extension.md` and `docs/fork/vscode-ai-chat.md`) |
 | `docs/fork/` | Fork docs, start at `docs/fork/ssh-transfer.md` |
 | `scripts/fork/` | Sync and seam tooling |
-| `.github/workflows/fork-ci.yml` | Fork CI |
 
 ## Seams
 

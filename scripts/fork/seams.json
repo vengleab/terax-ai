@@ -10,7 +10,6 @@
     "FORK.md",
     "docs/fork/",
     "scripts/fork/",
-    ".github/workflows/fork-ci.yml",
     "src/modules/ssh-transfer/",
     "src-tauri/crates/terax-ssh/",
     "src-tauri/crates/tauri-plugin-terax-ssh/",
