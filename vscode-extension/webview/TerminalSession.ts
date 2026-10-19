@@ -236,11 +236,13 @@ export class TerminalSession {
     surface.setFontMetrics(deps.metrics());
   }
 
-  /** The shell has ended. The window stays so the last output can be read. */
-  markExited(code: number): void {
+  /** The shell has ended (or never started, with the reason). The window stays so the last output can be read. */
+  markExited(code: number, reason?: string): void {
     if (this.exited) return;
     this.exited = true;
-    const text = `\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m\r\n`;
+    // A shell that never started has no output of its own: say why, instead of only a bare exit code.
+    const why = reason ? `\r\n\x1b[31m${reason.replace(/\r?\n/g, "\r\n")}\x1b[0m` : "";
+    const text = `${why}\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m\r\n`;
     this.model?.write(new TextEncoder().encode(text));
     this.deps.onEnded(this.id, code);
   }

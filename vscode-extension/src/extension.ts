@@ -13,7 +13,7 @@ import { aiSettings, VSCODE_LM } from "./ai/settings";
 import { buildTools } from "./ai/tools";
 import { vscodeLm } from "./ai/vscodeLmApi";
 import { buildHtml, makeNonce } from "./html";
-import { findHelper } from "./helperPath";
+import { findHelper, missingHelperMessage } from "./helperPath";
 import { HelperClient } from "./helperClient";
 import { SessionRouter } from "./router";
 import { chooseCwd, chooseShell, profileFor, shellEnvironment } from "./shell";
@@ -51,7 +51,7 @@ class TerminalViewProvider implements vscode.WebviewViewProvider, vscode.Disposa
         const found = findHelper(context.extensionPath, process.platform, process.arch, fs.existsSync);
         if (!found) {
           throw new Error(
-            `The Terax terminal helper is not included for ${process.platform}-${process.arch}. Build it with "cargo build --release" in vscode-extension/helper.`,
+            missingHelperMessage(context.extensionPath, process.platform, process.arch, (dir) => fs.readdirSync(dir)),
           );
         }
         return found;

@@ -223,7 +223,7 @@ onHostMessage((message) => {
       break;
     case "error": {
       const session = sessions.get(message.id);
-      session?.markExited(1);
+      session?.markExited(1, message.message);
       log("error", message.message);
       break;
     }

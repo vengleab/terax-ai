@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { findHelper, helperCandidates, helperFileName } from "./helperPath";
+import { findHelper, helperCandidates, helperFileName, missingHelperMessage } from "./helperPath";
 
 describe("helper location", () => {
   it("names the file for the system", () => {
@@ -20,5 +20,21 @@ describe("helper location", () => {
     const debug = path.join("/ext", "helper", "target", "debug", "terax-vscode-pty");
     expect(findHelper("/ext", "linux", "x64", (f) => f === debug)).toBe(debug);
     expect(findHelper("/ext", "linux", "x64", () => false)).toBeUndefined();
+  });
+});
+
+describe("missing helper message", () => {
+  it("names this system and the ones the package carries", () => {
+    const message = missingHelperMessage("/ext", "linux", "x64", () => ["darwin-arm64"]);
+    expect(message).toContain("linux-x64");
+    expect(message).toContain("darwin-arm64");
+    expect(message).toContain("Remote SSH");
+  });
+
+  it("copes with a package that has no bin folder", () => {
+    const message = missingHelperMessage("/ext", "linux", "x64", () => {
+      throw new Error("ENOENT");
+    });
+    expect(message).toContain("carries: none");
   });
 });
