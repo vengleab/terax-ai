@@ -11,6 +11,8 @@ describe("providerItems", () => {
     expect(items.find((i) => i.value === "openai")?.description).toBe("key saved");
     expect(items.find((i) => i.value === "anthropic")?.description).toBe("current · no key yet");
     expect(items.find((i) => i.value === "ollama")?.description).toBe("no key needed");
+    expect(items.find((i) => i.value === "google-vertex")?.description).toBe("needs a service account key file");
+    expect(providerItems((p) => p === "google-vertex", "openai").find((i) => i.value === "google-vertex")?.description).toBe("key file chosen");
   });
 });
 

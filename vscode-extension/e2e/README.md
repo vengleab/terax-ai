@@ -37,6 +37,11 @@ TERAX_E2E_WORKSPACE=/tmp/e2e/work TERAX_E2E_SETTINGS=/tmp/e2e/ud/User/settings.j
   PLAYWRIGHT_NODE_MODULES=/path/to/node_modules node vscode-extension/e2e/chat-lm.mjs /tmp/e2e/shots
 ```
 
+`chat-vertex.mjs` tests the Google Vertex AI flow (provider and model pickers, the key file chooser, what is saved,
+what the chat says when sign-in fails) with a made-up service account. It needs no extra extension. It reaches for
+Google's real token endpoint when there is a network, which rejects the made-up account; without a network the chat
+says Google could not be reached. Either ends the same way and is accepted. Run it like `chat.mjs`.
+
 It needs `playwright` with a Chromium (`CHROMIUM_PATH` if Playwright's own is not installed) and Linux or macOS, because
 the checks use `stty`, `less` and files in `/tmp`.
 

@@ -7,6 +7,11 @@ import {
   type ProviderId,
   providerNeedsKey,
 } from "../../../src/modules/ai/config";
+import {
+  DEFAULT_LOCATION as VERTEX_DEFAULT_LOCATION,
+  DEFAULT_MODEL as VERTEX_DEFAULT_MODEL,
+  MODEL_SUGGESTIONS as VERTEX_MODELS,
+} from "../../../src/modules/ai/providers/google-vertex/endpoint";
 import type { ConfigGetter } from "../settings";
 
 /** The providers the VS Code chat can use: those that need only an API key or a server address. */
@@ -24,6 +29,7 @@ export const SUPPORTED_PROVIDERS = [
   "lmstudio",
   "mlx",
   "ollama",
+  "google-vertex",
 ] as const satisfies readonly ProviderId[];
 
 export type SupportedProvider = (typeof SUPPORTED_PROVIDERS)[number];
@@ -38,6 +44,17 @@ export type AiProvider = SupportedProvider | typeof VSCODE_LM;
 /** In the order they are offered: Copilot first, as most people with a subscription want it. */
 export const AI_PROVIDERS: readonly AiProvider[] = [VSCODE_LM, ...SUPPORTED_PROVIDERS];
 
+/** Google Vertex AI signs in with a service account key file, which stays where the person keeps it. */
+export const GOOGLE_VERTEX = "google-vertex" as const;
+
+export type VertexSettings = {
+  /** The path of the service account .json file. Empty until one is chosen. */
+  keyFile: string;
+  location: string;
+  /** A project to bill instead of the key file's own. */
+  project: string;
+};
+
 export type AiSettings = {
   provider: AiProvider;
   /** Empty means the provider's first model in Terax's list. */
@@ -45,6 +62,7 @@ export type AiSettings = {
   baseUrl: string;
   maxSteps: number;
   commandTimeoutSeconds: number;
+  vertex: VertexSettings;
 };
 
 export function isSupportedProvider(value: unknown): value is SupportedProvider {
@@ -70,6 +88,11 @@ export function aiSettings(get: ConfigGetter): AiSettings {
     baseUrl: get<string>("terax.ai.baseUrl", "").trim(),
     maxSteps: clamp(get<number>("terax.ai.maxSteps", 24), 1, 100, 24),
     commandTimeoutSeconds: clamp(get<number>("terax.ai.commandTimeoutSeconds", 60), 1, 600, 60),
+    vertex: {
+      keyFile: get<string>("terax.ai.vertex.keyFile", "").trim(),
+      location: get<string>("terax.ai.vertex.location", VERTEX_DEFAULT_LOCATION).trim() || VERTEX_DEFAULT_LOCATION,
+      project: get<string>("terax.ai.vertex.project", "").trim(),
+    },
   };
 }
 
@@ -82,6 +105,7 @@ const PLACEHOLDER_MODEL = /-(custom|local)$/;
 /** The models Terax knows by name for a provider. Empty for providers where you type the model's name. */
 export function modelsFor(provider: AiProvider): { id: string; label: string; description: string }[] {
   if (provider === VSCODE_LM) return [];
+  if (provider === GOOGLE_VERTEX) return VERTEX_MODELS.map((id) => ({ id, label: id, description: "Gemini on Vertex AI, billed to your Google Cloud project" }));
   return MODELS.filter((m) => m.provider === provider && !PLACEHOLDER_MODEL.test(m.id)).map((m) => ({
     id: m.id,
     label: m.label,
@@ -100,7 +124,13 @@ export function defaultModelFor(provider: AiProvider): string | undefined {
 
 /** The model that will answer: the chosen one, else the provider's first. Empty when there is none to pick. */
 export function effectiveModel(settings: AiSettings): string {
+  if (settings.provider === GOOGLE_VERTEX) return settings.model || VERTEX_DEFAULT_MODEL;
   return settings.model || defaultModelFor(settings.provider) || "";
+}
+
+/** Whether the provider signs in with a key file instead of an API key. */
+export function needsKeyFile(provider: AiProvider): boolean {
+  return provider === GOOGLE_VERTEX;
 }
 
 export function defaultBaseUrl(provider: AiProvider): string {
@@ -117,7 +147,7 @@ export function defaultBaseUrl(provider: AiProvider): string {
 }
 
 export function needsApiKey(provider: AiProvider): boolean {
-  return provider !== VSCODE_LM && providerNeedsKey(provider);
+  return provider !== VSCODE_LM && provider !== GOOGLE_VERTEX && providerNeedsKey(provider);
 }
 
 /** The VS Code model setting is "vendor/id" (as the picker saves it), or just an id. */

@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, type AiProvider, modelsFor, needsApiKey, needsModelName, providerLabel, type SupportedProvider, VSCODE_LM } from "./settings";
+import { AI_PROVIDERS, type AiProvider, modelsFor, needsApiKey, needsKeyFile, needsModelName, providerLabel, type SupportedProvider, VSCODE_LM } from "./settings";
 
 export type PickItem<T> = { label: string; description?: string; detail?: string; value: T };
 
@@ -6,7 +6,18 @@ export type PickItem<T> = { label: string; description?: string; detail?: string
 export function providerItems(hasKey: (provider: AiProvider) => boolean, current: AiProvider): PickItem<AiProvider>[] {
   return AI_PROVIDERS.map((provider) => {
     const needs = needsApiKey(provider);
-    const note = provider === VSCODE_LM ? "uses your sign-in in VS Code, no key" : needs ? (hasKey(provider) ? "key saved" : "no key yet") : "no key needed";
+    const note =
+      provider === VSCODE_LM
+        ? "uses your sign-in in VS Code, no key"
+        : needsKeyFile(provider)
+          ? hasKey(provider)
+            ? "key file chosen"
+            : "needs a service account key file"
+          : needs
+            ? hasKey(provider)
+              ? "key saved"
+              : "no key yet"
+            : "no key needed";
     const description = [provider === current ? "current" : "", note].filter(Boolean).join(" · ");
     return { label: providerLabel(provider), description, value: provider };
   });

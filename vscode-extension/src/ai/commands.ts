@@ -1,9 +1,13 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import type { PageCommand } from "../../shared/chat";
 import type { ChatController } from "./chat";
 import type { ApiKeys } from "./keys";
 import { languageModelItems, modelItems, OTHER_MODEL, providerItems, selectionPrompt } from "./pickers";
-import { AI_PROVIDERS, aiSettings, defaultBaseUrl, needsApiKey, providerLabel, VSCODE_LM } from "./settings";
+import { AI_PROVIDERS, aiSettings, defaultBaseUrl, GOOGLE_VERTEX, needsApiKey, needsKeyFile, providerLabel, VSCODE_LM } from "./settings";
+import { readKeyFile } from "./vertex";
 import { vscodeLm } from "./vscodeLmApi";
 
 export type AiCommandApi = {
@@ -16,9 +20,49 @@ export type AiCommandApi = {
 const config = () => vscode.workspace.getConfiguration("terax.ai");
 const settings = () => aiSettings((section, fallback) => vscode.workspace.getConfiguration().get(section, fallback));
 
+/** Lets the person find the service account .json file. The file stays where it is; only its path is kept. */
+async function chooseKeyFile(): Promise<boolean> {
+  const downloads = path.join(os.homedir(), "Downloads");
+  const picked = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    canSelectFiles: true,
+    canSelectFolders: false,
+    openLabel: "Use this key file",
+    title: "Terax AI: choose the Google service account key file (.json)",
+    filters: { "Service account key (JSON)": ["json"] },
+    defaultUri: fs.existsSync(downloads) ? vscode.Uri.file(downloads) : undefined,
+  });
+  const uri = picked?.[0];
+  if (!uri) return false;
+  if (uri.scheme !== "file") {
+    void vscode.window.showErrorMessage("Terax AI: the key file must be a file on the machine VS Code runs this on.");
+    return false;
+  }
+  try {
+    const account = await readKeyFile(uri.fsPath);
+    await config().update("vertex.keyFile", uri.fsPath, vscode.ConfigurationTarget.Global);
+    void vscode.window.showInformationMessage(
+      `Terax AI: using ${account.clientEmail} in project ${account.projectId}. The key file is read from where it is and is not copied. Choose the Vertex AI User role for it in Google Cloud.`,
+    );
+    return true;
+  } catch (error) {
+    void vscode.window.showErrorMessage(`Terax AI: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
+
+async function clearKeyFile(): Promise<void> {
+  await config().update("vertex.keyFile", undefined, vscode.ConfigurationTarget.Global);
+  void vscode.window.showInformationMessage("Terax AI: the key file is forgotten. The file itself was not touched.");
+}
+
 async function setApiKey(api: AiCommandApi): Promise<void> {
   const provider = settings().provider;
   const label = providerLabel(provider);
+  if (needsKeyFile(provider)) {
+    await chooseKeyFile();
+    return;
+  }
   if (provider === VSCODE_LM) {
     void vscode.window.showInformationMessage("Terax AI: GitHub Copilot needs no key here. It uses the account you are signed in with in VS Code.");
     return;
@@ -43,6 +87,10 @@ async function clearApiKey(api: AiCommandApi): Promise<void> {
     void vscode.window.showInformationMessage("Terax AI: there is no key to remove for GitHub Copilot. Sign out of it in VS Code's Accounts menu.");
     return;
   }
+  if (needsKeyFile(provider)) {
+    await clearKeyFile();
+    return;
+  }
   await api.keys.clear(provider);
   void vscode.window.showInformationMessage(`Terax AI: the ${providerLabel(provider)} key was removed.`);
 }
@@ -50,7 +98,10 @@ async function clearApiKey(api: AiCommandApi): Promise<void> {
 async function selectModel(api: AiCommandApi): Promise<void> {
   const current = settings();
   const saved = new Set<string>();
-  for (const provider of AI_PROVIDERS) if (provider !== VSCODE_LM && (await api.keys.has(provider))) saved.add(provider);
+  for (const provider of AI_PROVIDERS) {
+    if (provider === VSCODE_LM) continue;
+    if (needsKeyFile(provider) ? current.vertex.keyFile !== "" : await api.keys.has(provider)) saved.add(provider);
+  }
 
   const chosenProvider = await vscode.window.showQuickPick(providerItems((p) => saved.has(p), current.provider), {
     title: "Terax AI: choose a provider (1 of 2)",
@@ -103,6 +154,7 @@ async function selectModel(api: AiCommandApi): Promise<void> {
   else if (provider !== current.provider && defaultBaseUrl(provider) === "") await config().update("baseUrl", undefined, target);
 
   if (needsApiKey(provider) && !(await api.keys.has(provider))) await setApiKey(api);
+  if (provider === GOOGLE_VERTEX && !current.vertex.keyFile) await chooseKeyFile();
 }
 
 /** The models VS Code offers (GitHub Copilot's, and any other extension's), chosen from a live list. */
@@ -162,6 +214,8 @@ export function registerAiCommands(context: vscode.ExtensionContext, api: AiComm
     vscode.commands.registerCommand("terax.ai.stop", guard(() => api.chat.stop())),
     vscode.commands.registerCommand("terax.ai.setApiKey", guard(() => setApiKey(api))),
     vscode.commands.registerCommand("terax.ai.clearApiKey", guard(() => clearApiKey(api))),
+    vscode.commands.registerCommand("terax.ai.chooseKeyFile", guard(async () => void (await chooseKeyFile()))),
+    vscode.commands.registerCommand("terax.ai.clearKeyFile", guard(() => clearKeyFile())),
     vscode.commands.registerCommand("terax.ai.selectModel", guard(() => selectModel(api))),
     vscode.commands.registerCommand("terax.ai.openSettings", guard(() => openSettings())),
     vscode.commands.registerCommand("terax.ai.askAboutSelection", guard(() => askAboutSelection(api))),
