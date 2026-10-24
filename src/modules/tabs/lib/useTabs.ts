@@ -1,4 +1,6 @@
 import { isMarkdownPath } from "@/lib/utils";
+// fork:ssh-transfer
+import type { SshTransferTab } from "@/modules/ssh-transfer/types";
 import {
   type AgentInstanceCount,
   createAgentPanePlan,
@@ -133,7 +135,9 @@ export type Tab =
   | AiDiffTab
   | GitDiffTab
   | GitHistoryTab
-  | GitCommitFileDiffTab;
+  | GitCommitFileDiffTab
+  // fork:ssh-transfer
+  | SshTransferTab;
 
 export type TabPatch = Partial<{
   title: string;

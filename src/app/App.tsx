@@ -72,6 +72,9 @@ import {
   useSpaces,
   useSpacesBoot,
 } from "@/modules/spaces";
+import { useLaunchFolders } from "@/modules/launch-folders"; // fork:launch-folders
+// fork:ssh-transfer
+import { SshSidebar, useSshTransfer } from "@/modules/ssh-transfer";
 import { StatusBar } from "@/modules/statusbar";
 import {
   TabSwitcherHud,
@@ -636,6 +639,22 @@ export default function App() {
     },
     [inheritedCwdForNewTab, newAgentGroupTab],
   );
+
+  // fork:ssh-transfer
+  const ssh = useSshTransfer({
+    tabs,
+    activeId,
+    spaceId: activeSpaceId ?? DEFAULT_SPACE_ID,
+    sidebarView,
+    allocId,
+    replaceTabs,
+    setActiveId,
+    openFileTab,
+    newAgentTab,
+    getCwd: inheritedCwdForNewTab,
+  });
+
+  useLaunchFolders({ ready: booted, openFolder: newTab }); // fork:launch-folders
 
   const sendCd = useCallback(
     (path: string) => {
@@ -1241,7 +1260,8 @@ export default function App() {
   const commandPaletteItems = useMemo(
     () =>
       commandPaletteOpen
-        ? createCommandItems({
+        ? [
+            ...createCommandItems({
             tabs,
             activeId,
             searchTarget,
@@ -1270,7 +1290,9 @@ export default function App() {
             openSpacesOverview: () => setSwitcherOpen(true),
             newSpace: () => void handleNewSpace(),
             switchSpace: (id) => useSpaces.getState().setActive(id),
-          })
+          }),
+            ...ssh.paletteItems, // fork:ssh-transfer
+          ]
         : [],
     [
       commandPaletteOpen,
@@ -1293,6 +1315,7 @@ export default function App() {
       askFromSelection,
       activeSpaceId,
       handleNewSpace,
+      ssh.paletteItems, // fork:ssh-transfer
     ],
   );
 
@@ -1443,7 +1466,15 @@ export default function App() {
                       key={sidebarView}
                       className="min-h-0 flex-1 terax-panel-in"
                     >
-                      {sidebarView === "explorer" ? (
+                      {/* fork:ssh-transfer */}
+                      {sidebarView === "explorer" && ssh.explorer ? (
+                        ssh.explorer
+                      ) : sidebarView === "ssh-transfer" ? (
+                        <SshSidebar
+                          onOpenTransfer={ssh.openTransfer}
+                          onOpenTerminal={ssh.openTerminal}
+                        />
+                      ) : sidebarView === "explorer" ? (
                         <FileExplorer
                           ref={explorerRef}
                           rootPath={explorerRoot}
@@ -1511,6 +1542,7 @@ export default function App() {
                         onGitHistorySearchHandle={setGitHistoryHandle}
                         onSetMarkdownView={setMarkdownView}
                       />
+                      {ssh.surface /* fork:ssh-transfer */}
                     </div>
 
                     <WorkspaceInputBar
@@ -1600,6 +1632,8 @@ export default function App() {
           />
 
           <UpdaterDialog />
+
+          {ssh.overlays /* fork:ssh-transfer */}
 
           <CloseDialogs
             tabs={tabs}

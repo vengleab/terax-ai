@@ -1,0 +1,29 @@
+[package]
+name = "terax-ssh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "SSH and SFTP core for Terax SSH File Transfer (no Tauri dependency)"
+
+[dependencies]
+# russh pins pre-release ssh-key and rsa crates, so both russh crates are pinned exactly.
+# ring avoids the NASM and slow aws-lc build on Windows.
+russh = { version = "=0.64.1", default-features = false, features = ["ring", "flate2", "rsa"] }
+russh-sftp = "=3.0.1"
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-util = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+zeroize = "1"
+dirs = "7"
+log = "0.4"
+getrandom = "0.4"
+# Same requirements as russh, so they resolve to the copies russh already builds.
+hmac = "0.13"
+sha1 = "0.11"
+data-encoding = "2.3"
+
+[dev-dependencies]
+tempfile = "3"

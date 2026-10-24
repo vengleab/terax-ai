@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./lazyKeys"; // fork:lazy-keys
 import {
   getProvider,
   KEYRING_SERVICE,
@@ -21,6 +21,8 @@ export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
   deepseek: null,
   mistral: null,
   openrouter: null,
+  "github-copilot": null, // fork:github-copilot
+  "google-vertex": null, // fork:google-vertex
   "openai-compatible": null,
   lmstudio: null,
   mlx: null,

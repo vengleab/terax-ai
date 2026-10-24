@@ -1,0 +1,350 @@
+{
+  "name": "terax-terminal",
+  "displayName": "Terax Terminal",
+  "description": "A terminal panel for VS Code drawn by Terax's own terminal engine.",
+  "version": "0.1.0",
+  "publisher": "terax-fork",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/host/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "terax",
+          "title": "Terax",
+          "icon": "media/terax.svg"
+        }
+      ]
+    },
+    "views": {
+      "terax": [
+        {
+          "type": "webview",
+          "id": "terax.terminalView",
+          "name": "Terminal"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "terax.terminal.focus",
+        "title": "Focus Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.toggle",
+        "title": "Toggle Terminal Panel",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.new",
+        "title": "New Terminal",
+        "category": "Terax",
+        "icon": "$(add)"
+      },
+      {
+        "command": "terax.terminal.newInFolder",
+        "title": "Open in Terax Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.kill",
+        "title": "Kill Terminal",
+        "category": "Terax",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "terax.terminal.clear",
+        "title": "Clear Terminal",
+        "category": "Terax",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "terax.terminal.sendText",
+        "title": "Send Text to Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.terminal.runSelection",
+        "title": "Run Selected Text in Terax Terminal",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.focusChat",
+        "title": "Focus AI Chat",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.newChat",
+        "title": "New AI Chat",
+        "category": "Terax",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "terax.ai.stop",
+        "title": "Stop AI",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.selectModel",
+        "title": "Select AI Model",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.setApiKey",
+        "title": "Set AI API Key",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.clearApiKey",
+        "title": "Remove AI API Key",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.openSettings",
+        "title": "Open AI Settings",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.askAboutSelection",
+        "title": "Ask Terax AI About Selection",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.chooseKeyFile",
+        "title": "Choose Google Service Account Key File",
+        "category": "Terax"
+      },
+      {
+        "command": "terax.ai.clearKeyFile",
+        "title": "Forget Google Service Account Key File",
+        "category": "Terax"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "terax.terminal.new",
+          "when": "view == terax.terminalView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "terax.terminal.clear",
+          "when": "view == terax.terminalView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "terax.terminal.kill",
+          "when": "view == terax.terminalView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "terax.ai.newChat",
+          "when": "view == terax.terminalView",
+          "group": "navigation@4"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "terax.terminal.runSelection",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@99"
+        },
+        {
+          "command": "terax.ai.askAboutSelection",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@100"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "terax.terminal.newInFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@40"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "terax.terminal.toggle",
+        "key": "ctrl+`",
+        "mac": "ctrl+`",
+        "when": "terax.takeOverShortcuts"
+      },
+      {
+        "command": "terax.terminal.new",
+        "key": "ctrl+shift+`",
+        "mac": "ctrl+shift+`",
+        "when": "terax.takeOverShortcuts"
+      }
+    ],
+    "configuration": {
+      "title": "Terax Terminal",
+      "properties": {
+        "terax.shell": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The shell to run. Empty uses your default terminal profile (`terminal.integrated.defaultProfile.*`), then `$SHELL` (`COMSPEC` on Windows)."
+        },
+        "terax.shellArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Arguments for the shell. Empty uses `-l` for zsh, bash and fish on macOS, as VS Code's own terminal does."
+        },
+        "terax.cwd": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where new terminals start. Empty uses the first workspace folder, then your home folder."
+        },
+        "terax.env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "markdownDescription": "Extra environment variables for new terminals."
+        },
+        "terax.takeOverShortcuts": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Make Ctrl+` open the Terax panel instead of VS Code's terminal, and Ctrl+Shift+` open a new Terax terminal."
+        },
+        "terax.skipShellKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "f1",
+            "ctrl+shift+p",
+            "ctrl+`",
+            "ctrl+shift+`",
+            "ctrl+tab",
+            "ctrl+shift+tab",
+            "ctrl+pageup",
+            "ctrl+pagedown"
+          ],
+          "markdownDescription": "Keys VS Code keeps for itself while the Terax terminal has focus, such as `ctrl+shift+p`. Every other key goes to the shell. This is a list of keys because the terminal cannot ask VS Code which commands they are bound to. On macOS, Cmd shortcuts always go to VS Code."
+        },
+        "terax.ai.provider": {
+          "type": "string",
+          "default": "vscode-lm",
+          "scope": "machine",
+          "enum": [
+            "vscode-lm",
+            "openai",
+            "anthropic",
+            "google",
+            "xai",
+            "cerebras",
+            "groq",
+            "deepseek",
+            "mistral",
+            "openrouter",
+            "openai-compatible",
+            "lmstudio",
+            "mlx",
+            "ollama",
+            "google-vertex"
+          ],
+          "markdownDescription": "Which service answers in the Terax AI chat. The default, `vscode-lm`, uses GitHub Copilot (or another model) through VS Code, with no key. Use **Terax: Select AI Model** to change it. This can only be set in your user settings, so a project cannot send your prompts and files to a server it chose.",
+          "enumDescriptions": [
+            "GitHub Copilot, and any other language model VS Code offers. Uses the account you are signed in with in VS Code: no key.",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "Gemini on Google Cloud Vertex AI, signed in with a service account key file (Terax: Choose Google Service Account Key File)."
+          ]
+        },
+        "terax.ai.model": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The model's name as the provider calls it. For `vscode-lm` it is `vendor/id` as **Terax: Select AI Model** saves it; empty uses the first GitHub Copilot model. For `google-vertex`, a Gemini model id such as `gemini-2.5-flash` (the default). Otherwise empty uses the provider's first model in Terax's list, and local and custom providers need a name here."
+        },
+        "terax.ai.baseUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The server address for `openai-compatible`, or to override the address of LM Studio, MLX or Ollama, for example `http://localhost:11434/v1`."
+        },
+        "terax.ai.maxSteps": {
+          "type": "number",
+          "default": 24,
+          "minimum": 1,
+          "maximum": 100,
+          "markdownDescription": "The most steps (model replies and tool calls) the agent takes for one message before it stops and asks you to continue."
+        },
+        "terax.ai.commandTimeoutSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 1,
+          "maximum": 600,
+          "markdownDescription": "How long a command the agent runs may take before it is stopped. The agent can ask for up to 600 seconds for one command."
+        },
+        "terax.ai.vertex.keyFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The Google Cloud **service account key file** (.json) for `google-vertex`. Terax reads it from where it is for every request; it is not copied or stored. Use **Terax: Choose Google Service Account Key File** to pick it. Anyone who can read the file can use the account, so keep it somewhere only you can read."
+        },
+        "terax.ai.vertex.location": {
+          "type": "string",
+          "default": "global",
+          "scope": "machine",
+          "markdownDescription": "Where Vertex AI runs the model: `global`, or a region such as `us-central1` or `europe-west4`."
+        },
+        "terax.ai.vertex.project": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "A Google Cloud project to use instead of the key file's own. Leave empty to use the key file's project."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.96.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vengleab/terax-ai"
+  },
+  "homepage": "https://github.com/vengleab/terax-ai/blob/main/docs/fork/vscode-extension.md",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In a workspace you have not trusted, the shell, arguments, folder and environment of new terminals come from your own settings only.",
+      "restrictedConfigurations": [
+        "terax.shell",
+        "terax.shellArgs",
+        "terax.cwd",
+        "terax.env"
+      ]
+    }
+  }
+}

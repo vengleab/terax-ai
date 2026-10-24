@@ -1,0 +1,204 @@
+{
+  "markers": [
+    "fork:ssh-transfer",
+    "fork:github-copilot",
+    "fork:lazy-keys",
+    "fork:google-vertex",
+    "fork:launch-folders"
+  ],
+  "ownedPrefixes": [
+    "FORK.md",
+    "docs/fork/",
+    "scripts/fork/",
+    "src/modules/ssh-transfer/",
+    "src-tauri/crates/terax-ssh/",
+    "src-tauri/crates/tauri-plugin-terax-ssh/",
+    "src-tauri/capabilities/ssh-transfer.json",
+    "src/modules/ai/providers/github-copilot/",
+    "src/modules/ai/providers/google-vertex/",
+    "src/modules/ai/providers/requestBody.ts",
+    "src/modules/launch-folders/",
+    "src-tauri/crates/tauri-plugin-terax-launch/",
+    "src-tauri/capabilities/launch-folders.json",
+    "vscode-extension/"
+  ],
+  "seams": [
+    {
+      "file": "src-tauri/Cargo.toml",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src-tauri/src/lib.rs",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/modules/tabs/lib/useTabs.ts",
+      "min": 2,
+      "max": 2
+    },
+    {
+      "file": "src/modules/tabs/lib/tabLabel.ts",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/modules/tabs/TabBar.tsx",
+      "min": 2,
+      "max": 2
+    },
+    {
+      "file": "src/modules/sidebar/types.ts",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/modules/sidebar/SidebarRail.tsx",
+      "min": 2,
+      "max": 2
+    },
+    {
+      "file": "src/modules/sidebar/useSidebarPanel.ts",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/app/App.tsx",
+      "min": 7,
+      "max": 7
+    },
+    {
+      "file": "src/modules/ai/config.ts",
+      "min": 5,
+      "max": 5,
+      "marker": "fork:github-copilot"
+    },
+    {
+      "file": "src/modules/ai/lib/agent.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:github-copilot"
+    },
+    {
+      "file": "src/modules/ai/lib/keyring.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:github-copilot"
+    },
+    {
+      "file": "src/settings/components/ProviderIcon.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:github-copilot"
+    },
+    {
+      "file": "src/modules/ai/components/AiStatusBarControls.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:github-copilot"
+    },
+    {
+      "file": "src/settings/sections/ModelsSection.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:github-copilot"
+    },
+    {
+      "file": "src/modules/terminal/ghostty/useGhosttyTerminalSession.ts",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/modules/ai/lib/keyring.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:lazy-keys"
+    },
+    {
+      "file": "src/modules/ai/lib/agent.ts",
+      "min": 4,
+      "max": 4,
+      "marker": "fork:lazy-keys"
+    },
+    {
+      "file": "src/modules/ai/lib/stt.ts",
+      "min": 3,
+      "max": 3,
+      "marker": "fork:lazy-keys"
+    },
+    {
+      "file": "src/settings/components/ProviderKeyCard.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:lazy-keys"
+    },
+    {
+      "file": "src/settings/sections/ModelsSection.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:lazy-keys"
+    },
+    {
+      "file": "src/modules/ai/config.ts",
+      "min": 5,
+      "max": 5,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/modules/ai/lib/agent.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/modules/ai/lib/keyring.ts",
+      "min": 1,
+      "max": 1,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/settings/components/ProviderIcon.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/modules/ai/components/AiStatusBarControls.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src/settings/sections/ModelsSection.tsx",
+      "min": 2,
+      "max": 2,
+      "marker": "fork:google-vertex"
+    },
+    {
+      "file": "src-tauri/Cargo.toml",
+      "marker": "fork:launch-folders",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src-tauri/src/lib.rs",
+      "marker": "fork:launch-folders",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "file": "src/app/App.tsx",
+      "marker": "fork:launch-folders",
+      "min": 2,
+      "max": 2
+    }
+  ],
+  "budgets": [
+    {
+      "file": ".size-limit.json",
+      "name": "total client JS",
+      "minKb": 1560
+    }
+  ]
+}

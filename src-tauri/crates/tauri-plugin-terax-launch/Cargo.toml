@@ -1,0 +1,19 @@
+[package]
+name = "tauri-plugin-terax-launch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Tauri plugin that hands folders opened from outside the app (macOS `open -a Terax <folder>`) to the frontend"
+links = "tauri-plugin-terax-launch"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = "2"
+url = "2"
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

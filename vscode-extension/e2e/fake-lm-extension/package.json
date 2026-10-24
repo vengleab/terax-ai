@@ -1,0 +1,26 @@
+{
+  "name": "terax-e2e-fake-lm",
+  "displayName": "Terax E2E Fake Language Model",
+  "description": "A scripted language model provider, used only by the Terax extension's end-to-end test.",
+  "version": "0.0.1",
+  "publisher": "terax-e2e",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "terax-e2e",
+        "displayName": "Terax E2E"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vengleab/terax-ai"
+  }
+}

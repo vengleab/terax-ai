@@ -1,0 +1,89 @@
+name: VS Code extension
+
+# Builds one .vsix that carries the terminal helper for Linux x64, Linux arm64, macOS arm64 and macOS x64, so the same
+# file works on your Mac and on a Remote SSH machine (the extension runs where the workspace is).
+# Download it from the run's artifacts, then: code --install-extension terax-terminal-universal.vsix
+# Windows is not included. The Linux helpers are built on Ubuntu 22.04 so they run on older glibc hosts.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  helper:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            system: linux-x64
+            rust-target: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04-arm
+            system: linux-arm64
+            rust-target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            system: darwin-arm64
+            rust-target: aarch64-apple-darwin
+          - os: macos-latest
+            system: darwin-x64
+            rust-target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: vscode-extension/helper -> target
+          key: ${{ matrix.rust-target }}
+
+      - name: Build helper
+        working-directory: vscode-extension/helper
+        run: cargo build --release --locked --target ${{ matrix.rust-target }}
+
+      - name: Collect helper
+        run: |
+          mkdir -p "helper-out/${{ matrix.system }}"
+          cp "vscode-extension/helper/target/${{ matrix.rust-target }}/release/terax-vscode-pty" "helper-out/${{ matrix.system }}/"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: helper-${{ matrix.system }}
+          path: helper-out/
+          if-no-files-found: error
+
+  package:
+    needs: helper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: helper-*
+          path: vscode-extension/bin
+          merge-multiple: true
+
+      - name: Keep the helpers executable
+        run: chmod +x vscode-extension/bin/*/terax-vscode-pty && ls -R vscode-extension/bin
+
+      - name: Package
+        working-directory: vscode-extension
+        run: node scripts/package.mjs --universal
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: terax-terminal-universal
+          path: vscode-extension/terax-terminal-universal.vsix
+          if-no-files-found: error

@@ -653,6 +653,7 @@ async function initializeSessionGeneration(
     onCommandState: (running) => {
       if (!running) mark("firstPromptMs");
     },
+    onTitle: (title) => window.dispatchEvent(new CustomEvent("terax:terminal-title", { detail: { leafId: session.leafId, title } })), // fork:ssh-transfer
   });
   const model = await coreRuntime.createModel({
     leafId: session.leafId,
