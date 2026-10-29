@@ -106,7 +106,7 @@ Three distinct surfaces:
 
 ### Secrets (`src-tauri/src/modules/secrets.rs`)
 
-- `secrets_get` / `secrets_set` / `secrets_delete` / `secrets_get_all` - OS keychain access, service `terax-ai`
+- `secrets_get` / `secrets_set` / `secrets_delete` / `secrets_get_all` - OS keychain access, service `terax-ai`. macOS keeps every secret in a single keychain item so the user is prompted at most once per launch
 
 ### Agent hooks (`src-tauri/src/modules/agent.rs`)
 
