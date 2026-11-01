@@ -1,7 +1,14 @@
 //! Secret storage with platform-appropriate backends.
 //!
-//! - macOS: macOS Keychain (via `keyring` crate)
-//! - Windows: Credential Manager (via `keyring` crate)
+//! - macOS: one macOS Keychain item (`VAULT_SERVICE`/`VAULT_ACCOUNT`) holding a
+//!   JSON map of every secret. Keychain access control is per item, so storing
+//!   one item per key made macOS ask for the login password once per key
+//!   (first launch, opening the Models tab, ...). A single item is read at
+//!   most once per launch and then served from memory. Items written by older
+//!   versions (one keychain item per key) are migrated into the vault the
+//!   first time they are requested.
+//! - Windows: Credential Manager (via `keyring` crate), one entry per key. It
+//!   never prompts, and its per-credential size cap rules out a shared blob.
 //! - Linux: a file in the app's local data dir, mode 0600. The default
 //!   `keyring` backend on Linux is the Secret Service over D-Bus, which
 //!   silently fails on systems without gnome-keyring/kwallet (and on the
@@ -21,7 +28,7 @@ use std::sync::Mutex;
 
 use tauri::AppHandle;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::collections::HashMap;
 #[cfg(target_os = "linux")]
 use std::fs;
@@ -30,17 +37,40 @@ use std::path::PathBuf;
 #[cfg(target_os = "linux")]
 use tauri::Manager;
 
+#[cfg(target_os = "macos")]
+const VAULT_SERVICE: &str = "terax-ai";
+#[cfg(target_os = "macos")]
+const VAULT_ACCOUNT: &str = "vault";
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[derive(Default)]
+struct Vault {
+    map: Option<HashMap<String, String>>,
+    /// Accounts already looked up as pre-vault keychain items, so a missing key
+    /// does not trigger another keychain read on every request.
+    #[cfg(target_os = "macos")]
+    legacy_checked: std::collections::HashSet<String>,
+}
+
 #[derive(Default)]
 pub struct SecretsState {
-    #[cfg(target_os = "linux")]
-    cache: Mutex<Option<HashMap<String, String>>>,
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    vault: Mutex<Vault>,
+    #[cfg(target_os = "windows")]
     _phantom: Mutex<()>,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn key(service: &str, account: &str) -> String {
     format!("{}::{}", service, account)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub(crate) fn parse_vault(raw: &str) -> Result<HashMap<String, String>, String> {
+    if raw.trim().is_empty() {
+        return Ok(HashMap::new());
+    }
+    serde_json::from_str(raw).map_err(|e| e.to_string())
 }
 
 #[cfg(target_os = "linux")]
@@ -51,22 +81,11 @@ fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 #[cfg(target_os = "linux")]
-fn read_store(app: &AppHandle) -> Result<HashMap<String, String>, String> {
-    read_store_at(&store_path(app)?)
-}
-
-#[cfg(target_os = "linux")]
 pub(crate) fn read_store_at(path: &std::path::Path) -> Result<HashMap<String, String>, String> {
     if !path.exists() {
         return Ok(HashMap::new());
     }
-    let bytes = fs::read(path).map_err(|e| e.to_string())?;
-    serde_json::from_slice::<HashMap<String, String>>(&bytes).map_err(|e| e.to_string())
-}
-
-#[cfg(target_os = "linux")]
-fn write_store(app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
-    write_store_at(&store_path(app)?, map)
+    parse_vault(&fs::read_to_string(path).map_err(|e| e.to_string())?)
 }
 
 #[cfg(target_os = "linux")]
@@ -95,19 +114,96 @@ pub(crate) fn write_store_at(
 }
 
 #[cfg(target_os = "linux")]
-fn with_store<F, R>(app: &AppHandle, state: &SecretsState, f: F) -> Result<R, String>
-where
-    F: FnOnce(&mut HashMap<String, String>) -> R,
-{
-    let mut guard = state.cache.lock().map_err(|e| e.to_string())?;
-    if guard.is_none() {
-        *guard = Some(read_store(app)?);
-    }
-    let map = guard.as_mut().expect("cache initialized above");
-    Ok(f(map))
+fn load_map(app: &AppHandle) -> Result<HashMap<String, String>, String> {
+    read_store_at(&store_path(app)?)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "linux")]
+fn persist_map(app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
+    write_store_at(&store_path(app)?, map)
+}
+
+#[cfg(target_os = "macos")]
+fn vault_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(VAULT_SERVICE, VAULT_ACCOUNT).map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn load_map(_app: &AppHandle) -> Result<HashMap<String, String>, String> {
+    match vault_entry()?.get_password() {
+        Ok(raw) => parse_vault(&raw),
+        Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn persist_map(_app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
+    let raw = serde_json::to_string(map).map_err(|e| e.to_string())?;
+    vault_entry()?.set_password(&raw).map_err(|e| e.to_string())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn loaded<'a>(app: &AppHandle, vault: &'a mut Vault) -> Result<&'a mut HashMap<String, String>, String> {
+    if vault.map.is_none() {
+        vault.map = Some(load_map(app)?);
+    }
+    Ok(vault.map.as_mut().expect("map initialized above"))
+}
+
+/// Moves a pre-vault keychain item (one item per key) into the vault.
+#[cfg(target_os = "macos")]
+fn migrate_legacy(
+    app: &AppHandle,
+    vault: &mut Vault,
+    service: &str,
+    account: &str,
+) -> Result<Option<String>, String> {
+    let k = key(service, account);
+    if vault.legacy_checked.contains(&k) {
+        return Ok(None);
+    }
+    let legacy = keyring::Entry::new(service, account).map_err(|e| e.to_string())?;
+    let value = match legacy.get_password() {
+        Ok(v) => v,
+        Err(keyring::Error::NoEntry) => {
+            vault.legacy_checked.insert(k);
+            return Ok(None);
+        }
+        // Denied or locked: leave it unchecked so a later request can retry.
+        Err(_) => return Ok(None),
+    };
+    let map = loaded(app, vault)?;
+    map.insert(k.clone(), value.clone());
+    // Only drop the old item once the vault holds the value.
+    if persist_map(app, map).is_ok() {
+        let _ = legacy.delete_credential();
+        vault.legacy_checked.insert(k);
+    }
+    Ok(Some(value))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn lookup(
+    app: &AppHandle,
+    vault: &mut Vault,
+    service: &str,
+    account: &str,
+) -> Result<Option<String>, String> {
+    if let Some(v) = loaded(app, vault)?.get(&key(service, account)) {
+        return Ok(Some(v.clone()));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        migrate_legacy(app, vault, service, account)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(None)
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn entry(service: &str, account: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(service, account).map_err(|e| e.to_string())
 }
@@ -119,13 +215,12 @@ pub async fn secrets_get(
     service: String,
     account: String,
 ) -> Result<Option<String>, String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        let _ = state; // capture
-        let key = key(&service, &account);
-        with_store(&app, &state, |m| m.get(&key).cloned())
+        let mut vault = state.vault.lock().map_err(|e| e.to_string())?;
+        lookup(&app, &mut vault, &service, &account)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
         let _ = (app, state);
         let e = entry(&service, &account)?;
@@ -145,19 +240,14 @@ pub async fn secrets_set(
     account: String,
     password: String,
 ) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        let key = key(&service, &account);
-        with_store(&app, &state, |m| {
-            m.insert(key, password);
-        })?;
-        let snapshot = {
-            let guard = state.cache.lock().map_err(|e| e.to_string())?;
-            guard.as_ref().cloned().unwrap_or_default()
-        };
-        write_store(&app, &snapshot)
+        let mut vault = state.vault.lock().map_err(|e| e.to_string())?;
+        let map = loaded(&app, &mut vault)?;
+        map.insert(key(&service, &account), password);
+        persist_map(&app, map)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
         let _ = (app, state);
         let e = entry(&service, &account)?;
@@ -172,19 +262,25 @@ pub async fn secrets_delete(
     service: String,
     account: String,
 ) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        let key = key(&service, &account);
-        with_store(&app, &state, |m| {
-            m.remove(&key);
-        })?;
-        let snapshot = {
-            let guard = state.cache.lock().map_err(|e| e.to_string())?;
-            guard.as_ref().cloned().unwrap_or_default()
-        };
-        write_store(&app, &snapshot)
+        let mut vault = state.vault.lock().map_err(|e| e.to_string())?;
+        let k = key(&service, &account);
+        let map = loaded(&app, &mut vault)?;
+        map.remove(&k);
+        persist_map(&app, map)?;
+        #[cfg(target_os = "macos")]
+        {
+            if vault.legacy_checked.insert(k) {
+                // A surviving pre-vault copy would be migrated back on the next launch.
+                if let Ok(legacy) = keyring::Entry::new(&service, &account) {
+                    let _ = legacy.delete_credential();
+                }
+            }
+        }
+        Ok(())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
         let _ = (app, state);
         let e = entry(&service, &account)?;
@@ -267,6 +363,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_vault_treats_blank_as_empty() {
+        assert!(parse_vault("").unwrap().is_empty());
+        assert!(parse_vault("  \n").unwrap().is_empty());
+    }
+
+    #[test]
+    fn parse_vault_roundtrips_and_rejects_garbage() {
+        let mut m = HashMap::new();
+        m.insert(key("svc", "a"), "1".to_string());
+        let json = serde_json::to_string(&m).unwrap();
+        assert_eq!(parse_vault(&json).unwrap(), m);
+        assert!(parse_vault("not json").is_err());
+    }
+
+    #[test]
     fn read_store_at_garbage_file_errors() {
         let tmp = TempDir::new().unwrap();
         let p = tmp.path().join("secrets.json");
@@ -283,16 +394,15 @@ pub async fn secrets_get_all(
     service: String,
     accounts: Vec<String>,
 ) -> Result<Vec<Option<String>>, String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        with_store(&app, &state, |m| {
-            accounts
-                .iter()
-                .map(|a| m.get(&key(&service, a)).cloned())
-                .collect()
-        })
+        let mut vault = state.vault.lock().map_err(|e| e.to_string())?;
+        accounts
+            .iter()
+            .map(|a| lookup(&app, &mut vault, &service, a))
+            .collect()
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
         let _ = (app, state);
         Ok(accounts

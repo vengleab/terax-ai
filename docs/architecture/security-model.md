@@ -64,7 +64,7 @@ Local LLM endpoints are explicitly allowed because the user opted in by pointing
 
 API keys are stored via `secrets_*` commands (`src-tauri/src/modules/secrets.rs`):
 
-- macOS: Keychain via `keyring`
+- macOS: one Keychain item holding all secrets as a JSON map, read once per launch and cached in memory (one item per key made macOS prompt for the password once per key). Older per-key items migrate into it on first access
 - Windows: Credential Manager via `keyring`
 - Linux: a JSON file in the app's local data dir with mode `0600` (atomic write to `.tmp` then rename)
 
